@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Screen } from './types';
 import { isSupabaseConfigured } from './supabase';
+import { useAuth } from './hooks/useAuth';
+import LoginScreen from './components/LoginScreen';
 import HomeScreen from './components/HomeScreen';
 import SessionDetail from './components/SessionDetail';
 import PickRoutineScreen from './components/PickRoutineScreen';
@@ -28,8 +30,11 @@ function SetupScreen() {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
+  const { session, loading } = useAuth();
 
   if (!isSupabaseConfigured) return <SetupScreen />;
+  if (loading) return <div className="app text-center text-muted mt-16">Loading...</div>;
+  if (!session) return <LoginScreen />;
 
   return (
     <div className="app">
