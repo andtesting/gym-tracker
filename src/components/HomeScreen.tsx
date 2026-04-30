@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchRecentSessions, fetchSessionSets } from '../api/sessions';
+import { signOut } from '../hooks/useAuth';
 import { toCSV, toJSON } from '../lib/export';
 import type { ExportRow } from '../lib/export';
 import type { SessionWithRoutine, Screen } from '../types';
@@ -61,6 +62,7 @@ export default function HomeScreen({ onNavigate }: Props) {
         <div className="row">
           <button className="btn-secondary btn-small" onClick={() => handleExport('csv')}>CSV</button>
           <button className="btn-secondary btn-small" onClick={() => handleExport('json')}>JSON</button>
+          <button className="btn-secondary btn-small" onClick={signOut}>Out</button>
         </div>
       </div>
 
