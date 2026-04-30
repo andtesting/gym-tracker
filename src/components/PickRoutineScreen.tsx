@@ -41,7 +41,7 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
     if (!trimmed) return;
     setCreating(true);
     try {
-      const routine = await createRoutine(trimmed);
+      const routine = await createRoutine(trimmed, routines.length);
       setRoutines(prev => [...prev, routine].sort((a, b) => a.name.localeCompare(b.name)));
       setNewName('');
       setShowAdd(false);

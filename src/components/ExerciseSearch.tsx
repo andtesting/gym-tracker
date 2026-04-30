@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchExercises, createExercise } from '../api/exercises';
+import { fetchMuscleGroups, createMuscleGroup } from '../api/muscleGroups';
 import { searchExercises } from '../lib/search';
-import type { Exercise } from '../types';
+import type { Exercise, MuscleGroup } from '../types';
+import MuscleGroupPicker from './MuscleGroupPicker';
 
 interface Props {
   onSelect: (exercise: Exercise) => void;
@@ -9,36 +11,82 @@ interface Props {
 
 export default function ExerciseSearch({ onSelect }: Props) {
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
+  const [groups, setGroups] = useState<MuscleGroup[]>([]);
   const [query, setQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [pendingName, setPendingName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchExercises().then(setAllExercises).catch(() => {});
+    Promise.all([fetchExercises(), fetchMuscleGroups()]).then(([ex, mg]) => {
+      setAllExercises(ex);
+      setGroups(mg);
+    });
   }, []);
 
-  const results = searchExercises(allExercises, query);
   const trimmedQuery = query.trim();
+  const results = searchExercises(allExercises, query);
   const exactMatch = allExercises.some(e => e.name.toLowerCase() === trimmedQuery.toLowerCase());
+
+  const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order);
+
+  const grouped = new Map<string, Exercise[]>();
+  const ungrouped: Exercise[] = [];
+  for (const ex of (trimmedQuery ? results : allExercises)) {
+    if (ex.muscle_group_id) {
+      const arr = grouped.get(ex.muscle_group_id) || [];
+      arr.push(ex);
+      grouped.set(ex.muscle_group_id, arr);
+    } else {
+      ungrouped.push(ex);
+    }
+  }
 
   function handleSelect(exercise: Exercise) {
     setQuery('');
     setShowResults(false);
+    setPendingName(null);
     onSelect(exercise);
   }
 
-  async function handleCreate() {
-    if (!trimmedQuery || exactMatch) return;
+  async function handleCreateWithMuscleGroup(muscleGroupId: string) {
+    if (!pendingName) return;
     setCreating(true);
     try {
-      const exercise = await createExercise(trimmedQuery);
+      const exercise = await createExercise(pendingName, muscleGroupId);
       setAllExercises(prev => [...prev, exercise].sort((a, b) => a.name.localeCompare(b.name)));
       handleSelect(exercise);
-    } catch {
     } finally {
       setCreating(false);
     }
+  }
+
+  if (pendingName) {
+    return (
+      <div className="mb-16">
+        <p className="mb-16">
+          Pick a muscle group for <strong>{pendingName}</strong>:
+        </p>
+        <MuscleGroupPicker
+          groups={sortedGroups}
+          selected={null}
+          onSelect={handleCreateWithMuscleGroup}
+          onCreateGroup={async name => {
+            const g = await createMuscleGroup(name, groups.length + 1);
+            setGroups(prev => [...prev, g]);
+            return g;
+          }}
+        />
+        {creating && <p className="text-muted mt-8">Creating...</p>}
+        <button
+          className="btn-secondary btn-small mt-8"
+          onClick={() => setPendingName(null)}
+        >
+          Cancel
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -51,27 +99,88 @@ export default function ExerciseSearch({ onSelect }: Props) {
         onFocus={() => setShowResults(true)}
         placeholder="Search or add exercise..."
       />
-      {showResults && trimmedQuery && (
-        <div className="search-results mt-8">
-          {results.map(exercise => (
-            <div
-              key={exercise.id}
-              className="search-result-item"
-              onClick={() => handleSelect(exercise)}
-            >
-              {exercise.name}
-            </div>
-          ))}
-          {!exactMatch && trimmedQuery && (
-            <div
-              className="search-result-item search-result-new"
-              onClick={handleCreate}
-            >
-              {creating ? 'Creating...' : `+ Create "${trimmedQuery}"`}
-            </div>
-          )}
-          {results.length === 0 && exactMatch && (
-            <div className="search-result-item text-muted">No matches</div>
+      {showResults && (
+        <div className="search-results mt-8" style={{ maxHeight: 300 }}>
+          {trimmedQuery ? (
+            <>
+              {results.map(exercise => (
+                <div
+                  key={exercise.id}
+                  className="search-result-item"
+                  onClick={() => handleSelect(exercise)}
+                >
+                  <span>{exercise.name}</span>
+                  <span className="text-small text-muted" style={{ marginLeft: 'auto', paddingLeft: 8 }}>
+                    {exercise.muscle_groups?.name ?? 'Other'}
+                  </span>
+                </div>
+              ))}
+              {!exactMatch && trimmedQuery && (
+                <div
+                  className="search-result-item search-result-new"
+                  onClick={() => setPendingName(trimmedQuery)}
+                >
+                  {`+ Create "${trimmedQuery}"`}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {sortedGroups.map(g => {
+                const exs = grouped.get(g.id);
+                if (!exs || exs.length === 0) return null;
+                return (
+                  <div key={g.id}>
+                    <div style={{
+                      padding: '8px 12px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: 'var(--color-muted)',
+                      textTransform: 'uppercase',
+                      background: 'var(--color-surface)',
+                      position: 'sticky',
+                      top: 0,
+                    }}>
+                      {g.name}
+                    </div>
+                    {exs.map(exercise => (
+                      <div
+                        key={exercise.id}
+                        className="search-result-item"
+                        onClick={() => handleSelect(exercise)}
+                      >
+                        {exercise.name}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {ungrouped.length > 0 && (
+                <div>
+                  <div style={{
+                    padding: '8px 12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--color-muted)',
+                    textTransform: 'uppercase',
+                    background: 'var(--color-surface)',
+                    position: 'sticky',
+                    top: 0,
+                  }}>
+                    Other
+                  </div>
+                  {ungrouped.map(exercise => (
+                    <div
+                      key={exercise.id}
+                      className="search-result-item"
+                      onClick={() => handleSelect(exercise)}
+                    >
+                      {exercise.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

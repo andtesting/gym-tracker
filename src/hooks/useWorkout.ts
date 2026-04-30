@@ -25,6 +25,7 @@ export function useWorkout(sessionId: string, routineId: string) {
         if (data) {
           const exerciseMap = new Map<string, { exercise: Exercise; sets: SetWithExercise[] }>();
           for (const set of data.sets) {
+            if (!set.exercise_id || !set.exercises) continue;
             const key = set.exercise_id;
             if (!exerciseMap.has(key)) {
               exerciseMap.set(key, { exercise: set.exercises, sets: [] });

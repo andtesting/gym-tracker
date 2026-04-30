@@ -1,31 +1,41 @@
+export interface MuscleGroup {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Routine {
   id: string;
   name: string;
+  color: string;
   created_at: string;
 }
 
 export interface Exercise {
   id: string;
   name: string;
+  muscle_group_id: string | null;
+  muscle_groups: MuscleGroup | null;
   created_at: string;
 }
 
 export interface Session {
   id: string;
-  routine_id: string;
+  routine_id: string | null;
   started_at: string;
   finished_at: string | null;
   notes: string | null;
 }
 
 export interface SessionWithRoutine extends Session {
-  routines: Routine;
+  routines: Routine | null;
 }
 
 export interface WorkoutSet {
   id: string;
   session_id: string;
-  exercise_id: string;
+  exercise_id: string | null;
   set_order: number;
   set_type: 'warmup' | 'working';
   reps: number;
@@ -36,7 +46,7 @@ export interface WorkoutSet {
 }
 
 export interface SetWithExercise extends WorkoutSet {
-  exercises: Exercise;
+  exercises: Exercise | null;
 }
 
 export interface LastSessionData {
@@ -44,8 +54,15 @@ export interface LastSessionData {
   sets: SetWithExercise[];
 }
 
+export interface HeatmapSession {
+  started_at: string;
+  routines: { color: string } | null;
+}
+
 export type Screen =
   | { name: 'home' }
   | { name: 'sessionDetail'; sessionId: string }
   | { name: 'pickRoutine' }
-  | { name: 'activeWorkout'; sessionId: string; routineId: string; routineName: string };
+  | { name: 'activeWorkout'; sessionId: string; routineId: string; routineName: string }
+  | { name: 'editMode' }
+  | { name: 'trends' };

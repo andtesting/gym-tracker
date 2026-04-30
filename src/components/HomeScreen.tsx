@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { fetchRecentSessions, fetchSessionSets } from '../api/sessions';
+import { fetchRecentSessions, fetchSessionSets, fetchHeatmapSessions } from '../api/sessions';
 import { signOut } from '../hooks/useAuth';
 import { toCSV, toJSON } from '../lib/export';
 import type { ExportRow } from '../lib/export';
-import type { SessionWithRoutine, Screen } from '../types';
+import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
+import ActivityHeatmap from './ActivityHeatmap';
+import ExportDropdown from './ExportDropdown';
 
 interface Props {
   onNavigate: (screen: Screen) => void;
@@ -11,25 +13,39 @@ interface Props {
 
 export default function HomeScreen({ onNavigate }: Props) {
   const [sessions, setSessions] = useState<SessionWithRoutine[]>([]);
+  const [heatmapSessions, setHeatmapSessions] = useState<HeatmapSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchRecentSessions()
-      .then(setSessions)
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - 84);
+    const startDate = start.toISOString().split('T')[0];
+    const endDate = now.toISOString().split('T')[0] + 'T23:59:59';
+
+    Promise.all([
+      fetchRecentSessions(14),
+      fetchHeatmapSessions(startDate, endDate),
+    ])
+      .then(([recent, heatmap]) => {
+        setSessions(recent);
+        setHeatmapSessions(heatmap);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
   async function handleExport(format: 'csv' | 'json') {
+    const allSessions = await fetchRecentSessions(1000);
     const rows: ExportRow[] = [];
-    for (const session of sessions) {
+    for (const session of allSessions) {
       const sets = await fetchSessionSets(session.id);
       for (const set of sets) {
         rows.push({
           date: session.started_at.split('T')[0],
-          routine: session.routines.name,
-          exercise: set.exercises.name,
+          routine: session.routines?.name ?? 'Unnamed Routine',
+          exercise: set.exercises?.name ?? 'Unnamed Exercise',
           set_type: set.set_type,
           reps: set.reps,
           weight_kg: set.weight_kg,
@@ -60,38 +76,66 @@ export default function HomeScreen({ onNavigate }: Props) {
       <div className="header-bar">
         <h1>Gym Tracker</h1>
         <div className="row">
-          <button className="btn-secondary btn-small" onClick={() => handleExport('csv')}>CSV</button>
-          <button className="btn-secondary btn-small" onClick={() => handleExport('json')}>JSON</button>
-          <button className="btn-secondary btn-small" onClick={signOut}>Out</button>
+          <button className="btn-secondary btn-small" onClick={() => onNavigate({ name: 'editMode' })}>Edit</button>
+          <button className="btn-secondary btn-small" onClick={signOut}>Logout</button>
         </div>
       </div>
 
       {loading && <p className="text-muted text-center mt-16">Loading...</p>}
       {error && <p className="text-center mt-16" style={{ color: 'var(--color-danger)' }}>{error}</p>}
 
+      {!loading && <ActivityHeatmap sessions={heatmapSessions} />}
+
       {!loading && sessions.length === 0 && (
         <p className="text-muted text-center mt-16">No workouts yet. Start your first one!</p>
       )}
 
-      {sessions.map(session => (
-        <div
-          key={session.id}
-          className="session-list-item"
-          onClick={() => onNavigate({ name: 'sessionDetail', sessionId: session.id })}
-        >
-          <div className="row-between">
-            <div>
-              <strong>{session.routines.name}</strong>
-              <div className="text-small text-muted">{formatDate(session.started_at)}</div>
+      <div className="mt-16">
+        {sessions.map(session => (
+          <div
+            key={session.id}
+            className="session-list-item"
+            onClick={() => onNavigate({ name: 'sessionDetail', sessionId: session.id })}
+          >
+            <div className="row-between">
+              <div className="row" style={{ gap: 8 }}>
+                {session.routines && (
+                  <div
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: session.routines.color,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <strong>{session.routines?.name ?? 'Unnamed Routine'}</strong>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                {!session.finished_at && (
+                  <span className="text-small" style={{ color: 'var(--color-warning)' }}>In progress</span>
+                )}
+                <span className="text-small text-muted">{formatDate(session.started_at)}</span>
+              </div>
             </div>
-            {!session.finished_at && (
-              <span className="text-small" style={{ color: 'var(--color-warning)' }}>In progress</span>
-            )}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
-      <div className="bottom-bar">
+      <div className="bottom-bar-two-row">
+        <div className="row">
+          <div style={{ flex: 1 }}>
+            <ExportDropdown onExport={handleExport} />
+          </div>
+          <button
+            className="btn-secondary"
+            style={{ flex: 1 }}
+            onClick={() => onNavigate({ name: 'trends' })}
+          >
+            View Trends
+          </button>
+        </div>
         <button className="btn-primary" onClick={() => onNavigate({ name: 'pickRoutine' })}>
           Start Workout
         </button>

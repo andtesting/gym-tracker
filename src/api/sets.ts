@@ -28,3 +28,22 @@ export async function updateSetRest(setId: string, restSeconds: number): Promise
     .eq('id', setId);
   if (error) throw error;
 }
+
+export async function updateSet(
+  id: string,
+  updates: { reps?: number; weight_kg?: number },
+): Promise<void> {
+  const { error } = await supabase
+    .from('sets')
+    .update(updates)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteSet(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('sets')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}

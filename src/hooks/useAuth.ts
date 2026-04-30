@@ -41,3 +41,10 @@ export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
+
+export async function resetPassword(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://andtesting.github.io/gym-tracker/',
+  });
+  if (error) throw error;
+}

@@ -7,6 +7,8 @@ import HomeScreen from './components/HomeScreen';
 import SessionDetail from './components/SessionDetail';
 import PickRoutineScreen from './components/PickRoutineScreen';
 import ActiveWorkout from './components/ActiveWorkout';
+import EditModeScreen from './components/EditModeScreen';
+import TrendsView from './components/TrendsView';
 
 function SetupScreen() {
   return (
@@ -57,6 +59,12 @@ export default function App() {
           routineName={screen.routineName}
           onFinish={() => setScreen({ name: 'home' })}
         />
+      )}
+      {screen.name === 'editMode' && (
+        <EditModeScreen onBack={() => setScreen({ name: 'home' })} />
+      )}
+      {screen.name === 'trends' && (
+        <TrendsView onBack={() => setScreen({ name: 'home' })} />
       )}
     </div>
   );
