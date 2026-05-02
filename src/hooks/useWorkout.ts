@@ -19,8 +19,13 @@ export function useWorkout(sessionId: string, routineId: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const lastSessionPromise = fetchLastSession(routineId).catch((e) => {
+      console.error('Failed to fetch last session:', e);
+      return null;
+    });
+
     Promise.all([
-      fetchLastSession(routineId),
+      lastSessionPromise,
       fetchSessionSets(sessionId),
     ])
       .then(([lastData, currentSets]) => {
@@ -29,9 +34,10 @@ export function useWorkout(sessionId: string, routineId: string) {
         const lastSetsMap = new Map<string, SetWithExercise[]>();
         if (lastData) {
           for (const set of lastData.sets) {
-            if (!set.exercise_id) continue;
-            if (!lastSetsMap.has(set.exercise_id)) lastSetsMap.set(set.exercise_id, []);
-            lastSetsMap.get(set.exercise_id)!.push(set);
+            if (!set.exercise_id || !set.exercises) continue;
+            const arr = lastSetsMap.get(set.exercise_id) ?? [];
+            arr.push(set);
+            lastSetsMap.set(set.exercise_id, arr);
           }
         }
 
@@ -76,7 +82,7 @@ export function useWorkout(sessionId: string, routineId: string) {
           setLastSetId(currentSets[currentSets.length - 1].id);
         }
       })
-      .catch(() => {})
+      .catch((e) => console.error('Failed to load session data:', e))
       .finally(() => setLoading(false));
   }, [sessionId, routineId]);
 
