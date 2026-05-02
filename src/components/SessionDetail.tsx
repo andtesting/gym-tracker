@@ -52,6 +52,28 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     setEditing(false);
   }
 
+  async function handleSwapExercises(groupIndexA: number, groupIndexB: number) {
+    if (groupIndexB < 0 || groupIndexB >= grouped.length) return;
+
+    const reordered = [...grouped];
+    [reordered[groupIndexA], reordered[groupIndexB]] = [reordered[groupIndexB], reordered[groupIndexA]];
+
+    const updates: Promise<void>[] = [];
+    let order = 1;
+    for (const group of reordered) {
+      for (const s of group.sets) {
+        if (s.set_order !== order) {
+          updates.push(updateSet(s.id, { set_order: order }));
+        }
+        order++;
+      }
+    }
+
+    await Promise.all(updates);
+    const refreshed = await fetchSessionSets(sessionId);
+    setSets(refreshed);
+  }
+
   async function handleSave() {
     setError(null);
     for (const set of sets) {
@@ -126,7 +148,29 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
 
       {grouped.map((group, i) => (
         <div key={i} className="mb-16">
-          <h3>{group.name}</h3>
+          <div className="row-between">
+            <h3>{group.name}</h3>
+            {editing && (
+              <div className="row" style={{ gap: 4 }}>
+                <button
+                  className="btn-small btn-secondary"
+                  style={{ padding: '2px 8px', minHeight: 0, fontSize: '0.875rem' }}
+                  onClick={() => handleSwapExercises(i, i - 1)}
+                  disabled={i === 0}
+                >
+                  ↑
+                </button>
+                <button
+                  className="btn-small btn-secondary"
+                  style={{ padding: '2px 8px', minHeight: 0, fontSize: '0.875rem' }}
+                  onClick={() => handleSwapExercises(i, i + 1)}
+                  disabled={i === grouped.length - 1}
+                >
+                  ↓
+                </button>
+              </div>
+            )}
+          </div>
           <div className="set-row set-row-header mt-8">
             <span>Set</span><span>Type</span><span>Reps</span><span>Weight</span>
             {editing && <span />}

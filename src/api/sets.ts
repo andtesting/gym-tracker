@@ -31,7 +31,7 @@ export async function updateSetRest(setId: string, restSeconds: number): Promise
 
 export async function updateSet(
   id: string,
-  updates: { reps?: number; weight_kg?: number },
+  updates: { reps?: number; weight_kg?: number; set_order?: number },
 ): Promise<void> {
   const { error } = await supabase
     .from('sets')
