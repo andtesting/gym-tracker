@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchLastSession, finishSession } from '../api/sessions';
+import { fetchLastSession, fetchSessionSets, finishSession } from '../api/sessions';
 import { createSet, updateSetRest } from '../api/sets';
 import type { Exercise, WorkoutSet, SetWithExercise, LastSessionData } from '../types';
 import type { CreateSetInput } from '../api/sets';
@@ -19,29 +19,66 @@ export function useWorkout(sessionId: string, routineId: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchLastSession(routineId)
-      .then(data => {
-        setLastSessionData(data);
-        if (data) {
-          const exerciseMap = new Map<string, { exercise: Exercise; sets: SetWithExercise[] }>();
-          for (const set of data.sets) {
-            if (!set.exercise_id || !set.exercises) continue;
-            const key = set.exercise_id;
-            if (!exerciseMap.has(key)) {
-              exerciseMap.set(key, { exercise: set.exercises, sets: [] });
-            }
-            exerciseMap.get(key)!.sets.push(set);
+    Promise.all([
+      fetchLastSession(routineId),
+      fetchSessionSets(sessionId),
+    ])
+      .then(([lastData, currentSets]) => {
+        setLastSessionData(lastData);
+
+        const lastSetsMap = new Map<string, SetWithExercise[]>();
+        if (lastData) {
+          for (const set of lastData.sets) {
+            if (!set.exercise_id) continue;
+            if (!lastSetsMap.has(set.exercise_id)) lastSetsMap.set(set.exercise_id, []);
+            lastSetsMap.get(set.exercise_id)!.push(set);
           }
-          const prepopulated: ActiveExercise[] = Array.from(exerciseMap.values()).map(
-            ({ exercise, sets }) => ({ exercise, sets: [], lastSessionSets: sets })
-          );
-          setExercises(prepopulated);
-          if (prepopulated.length > 0) setActiveIndex(0);
+        }
+
+        const exerciseMap = new Map<string, ActiveExercise>();
+        const exerciseOrder: string[] = [];
+
+        for (const set of currentSets) {
+          if (!set.exercise_id || !set.exercises) continue;
+          const key = set.exercise_id;
+          if (!exerciseMap.has(key)) {
+            exerciseMap.set(key, {
+              exercise: set.exercises,
+              sets: [],
+              lastSessionSets: lastSetsMap.get(key) ?? [],
+            });
+            exerciseOrder.push(key);
+          }
+          exerciseMap.get(key)!.sets.push(set);
+        }
+
+        if (lastData) {
+          for (const set of lastData.sets) {
+            if (!set.exercise_id || !set.exercises) continue;
+            if (!exerciseMap.has(set.exercise_id)) {
+              exerciseMap.set(set.exercise_id, {
+                exercise: set.exercises,
+                sets: [],
+                lastSessionSets: lastSetsMap.get(set.exercise_id) ?? [],
+              });
+              exerciseOrder.push(set.exercise_id);
+            }
+          }
+        }
+
+        const result = exerciseOrder.map(id => exerciseMap.get(id)!);
+        setExercises(result);
+        if (result.length > 0) setActiveIndex(0);
+
+        if (currentSets.length > 0) {
+          const maxOrder = Math.max(...currentSets.map(s => s.set_order));
+          setSetOrder(maxOrder + 1);
+          setLastSetId(currentSets[currentSets.length - 1].id);
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [routineId]);
+  }, [sessionId, routineId]);
 
   const addExercise = useCallback((exercise: Exercise) => {
     setExercises(prev => {
