@@ -42,6 +42,8 @@ export interface WorkoutSet {
   weight_kg: number;
   set_duration_seconds: number | null;
   rest_seconds: number | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
 }
 

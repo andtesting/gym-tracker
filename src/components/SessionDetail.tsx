@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react';
 import { fetchSessionSets, deleteSession } from '../api/sessions';
-import { updateSet, deleteSet } from '../api/sets';
-import type { SetWithExercise } from '../types';
+import { createSet, updateSet, deleteSet } from '../api/sets';
+import type { Exercise, SetWithExercise } from '../types';
+import ExerciseSearch from './ExerciseSearch';
 
 interface Props {
   sessionId: string;
@@ -21,6 +22,11 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [editedSets, setEditedSets] = useState<Record<string, { reps: string; weight_kg: string }>>({});
   const [error, setError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState(false);
+  const [addingExercise, setAddingExercise] = useState(false);
+  const [pendingExercise, setPendingExercise] = useState<Exercise | null>(null);
+  const [pendingReps, setPendingReps] = useState('10');
+  const [pendingWeight, setPendingWeight] = useState('');
+  const [pendingType, setPendingType] = useState<'warmup' | 'working'>('working');
 
   useEffect(() => {
     fetchSessionSets(sessionId)
@@ -132,6 +138,45 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     onBack();
   }
 
+  async function handleAddRetroactiveSet() {
+    if (!pendingExercise) return;
+    const reps = parseInt(pendingReps, 10);
+    const weight = parseFloat(pendingWeight);
+    if (isNaN(reps) || isNaN(weight)) {
+      setError('Invalid reps or weight.');
+      return;
+    }
+    setError(null);
+    try {
+      const maxOrder = sets.length > 0 ? Math.max(...sets.map(s => s.set_order)) : 0;
+      const backdatedCreatedAt = sets.length > 0 ? sets[0].created_at : undefined;
+      await createSet({
+        session_id: sessionId,
+        exercise_id: pendingExercise.id,
+        set_order: maxOrder + 1,
+        set_type: pendingType,
+        reps,
+        weight_kg: weight,
+        set_duration_seconds: null,
+        started_at: null,
+        completed_at: null,
+        created_at: backdatedCreatedAt,
+      });
+      const refreshed = await fetchSessionSets(sessionId);
+      setSets(refreshed);
+      setPendingReps('10');
+      setPendingWeight('');
+      setPendingType('working');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add set.');
+    }
+  }
+
+  function handleSelectExercise(exercise: Exercise) {
+    setPendingExercise(exercise);
+    setAddingExercise(false);
+  }
+
   function updateEditField(setId: string, field: 'reps' | 'weight_kg', value: string) {
     setEditedSets(prev => ({
       ...prev,
@@ -228,6 +273,77 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
           ))}
         </div>
       ))}
+
+      {editing && (
+        <div className="mt-16">
+          <h3 className="mb-16">Add Exercise</h3>
+          {addingExercise ? (
+            <ExerciseSearch onSelect={handleSelectExercise} />
+          ) : pendingExercise ? (
+            <div className="card">
+              <div className="row-between mb-16">
+                <strong>{pendingExercise.name}</strong>
+                <button
+                  className="btn-secondary btn-small"
+                  onClick={() => { setPendingExercise(null); setPendingWeight(''); }}
+                >
+                  Change
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <div>
+                  <label className="text-small text-muted">Type</label>
+                  <select
+                    value={pendingType}
+                    onChange={e => setPendingType(e.target.value as 'warmup' | 'working')}
+                    style={{ width: '100%', minHeight: 36, fontSize: '0.875rem' }}
+                  >
+                    <option value="working">Working</option>
+                    <option value="warmup">Warmup</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-small text-muted">Reps</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={pendingReps}
+                    onChange={e => setPendingReps(e.target.value)}
+                    style={{ width: '100%', minHeight: 36, padding: '4px 8px', fontSize: '0.875rem' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-small text-muted">Weight (kg)</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={pendingWeight}
+                    onChange={e => setPendingWeight(e.target.value)}
+                    style={{ width: '100%', minHeight: 36, padding: '4px 8px', fontSize: '0.875rem' }}
+                  />
+                </div>
+              </div>
+              <button
+                className="btn-primary btn-small mt-8"
+                style={{ width: '100%' }}
+                onClick={handleAddRetroactiveSet}
+              >
+                <Plus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                Add Set
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn-secondary"
+              style={{ width: '100%' }}
+              onClick={() => setAddingExercise(true)}
+            >
+              <Plus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              Search Exercise to Add
+            </button>
+          )}
+        </div>
+      )}
 
       <button
         className="btn-small mt-16"

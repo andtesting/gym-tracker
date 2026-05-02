@@ -25,8 +25,8 @@ export default function ExportDropdown({ onExport }: Props) {
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <button className="btn-secondary" onClick={() => setOpen(prev => !prev)}>
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <button className="btn-secondary" style={{ width: '100%' }} onClick={() => setOpen(prev => !prev)}>
         Export
       </button>
       {open && (
