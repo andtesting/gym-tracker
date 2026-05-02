@@ -20,6 +20,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [editing, setEditing] = useState(false);
   const [editedSets, setEditedSets] = useState<Record<string, { reps: string; weight_kg: string }>>({});
   const [error, setError] = useState<string | null>(null);
+  const [swapping, setSwapping] = useState(false);
 
   useEffect(() => {
     fetchSessionSets(sessionId)
@@ -54,25 +55,33 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   }
 
   async function handleSwapExercises(groupIndexA: number, groupIndexB: number) {
-    if (groupIndexB < 0 || groupIndexB >= grouped.length) return;
+    if (groupIndexB < 0 || groupIndexB >= grouped.length || swapping) return;
 
-    const reordered = [...grouped];
-    [reordered[groupIndexA], reordered[groupIndexB]] = [reordered[groupIndexB], reordered[groupIndexA]];
+    setSwapping(true);
+    setError(null);
+    try {
+      const reordered = [...grouped];
+      [reordered[groupIndexA], reordered[groupIndexB]] = [reordered[groupIndexB], reordered[groupIndexA]];
 
-    const updates: Promise<void>[] = [];
-    let order = 1;
-    for (const group of reordered) {
-      for (const s of group.sets) {
-        if (s.set_order !== order) {
-          updates.push(updateSet(s.id, { set_order: order }));
+      const updates: Promise<void>[] = [];
+      let order = 1;
+      for (const group of reordered) {
+        for (const s of group.sets) {
+          if (s.set_order !== order) {
+            updates.push(updateSet(s.id, { set_order: order }));
+          }
+          order++;
         }
-        order++;
       }
-    }
 
-    await Promise.all(updates);
-    const refreshed = await fetchSessionSets(sessionId);
-    setSets(refreshed);
+      await Promise.all(updates);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reorder exercises.');
+    } finally {
+      const refreshed = await fetchSessionSets(sessionId);
+      setSets(refreshed);
+      setSwapping(false);
+    }
   }
 
   async function handleSave() {
@@ -157,7 +166,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                   className="btn-small btn-secondary"
                   style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
                   onClick={() => handleSwapExercises(i, i - 1)}
-                  disabled={i === 0}
+                  disabled={i === 0 || swapping}
                 >
                   <ChevronUp size={16} />
                 </button>
@@ -165,7 +174,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                   className="btn-small btn-secondary"
                   style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
                   onClick={() => handleSwapExercises(i, i + 1)}
-                  disabled={i === grouped.length - 1}
+                  disabled={i === grouped.length - 1 || swapping}
                 >
                   <ChevronDown size={16} />
                 </button>
