@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchRoutines, createRoutine, updateRoutine, deleteRoutine } from '../api/routines';
 import { fetchExercises, updateExercise, deleteExercise } from '../api/exercises';
 import { fetchMuscleGroups, createMuscleGroup, updateMuscleGroup, deleteMuscleGroup } from '../api/muscleGroups';
@@ -303,19 +304,19 @@ export default function EditModeScreen({ onBack }: Props) {
             <div className="row" style={{ gap: 4 }}>
               <button
                 className="btn-small btn-secondary"
-                style={{ padding: '2px 6px', minHeight: 0, fontSize: '0.75rem' }}
+                style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
                 onClick={() => handleGroupReorder(group.id, 'up')}
                 disabled={idx === 0}
               >
-                ^
+                <ChevronUp size={14} />
               </button>
               <button
                 className="btn-small btn-secondary"
-                style={{ padding: '2px 6px', minHeight: 0, fontSize: '0.75rem' }}
+                style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
                 onClick={() => handleGroupReorder(group.id, 'down')}
                 disabled={idx === sortedGroups.length - 1}
               >
-                v
+                <ChevronDown size={14} />
               </button>
             </div>
             <input

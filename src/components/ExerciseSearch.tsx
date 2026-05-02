@@ -29,7 +29,7 @@ export default function ExerciseSearch({ onSelect }: Props) {
   const results = searchExercises(allExercises, query);
   const exactMatch = allExercises.some(e => e.name.toLowerCase() === trimmedQuery.toLowerCase());
 
-  const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order);
+  const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
 
   const grouped = new Map<string, Exercise[]>();
   const ungrouped: Exercise[] = [];
