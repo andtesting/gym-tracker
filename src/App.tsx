@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Screen } from './types';
 import { isSupabaseConfigured } from './supabase';
 import { useAuth } from './hooks/useAuth';
+import { loadActiveWorkout, clearActiveWorkout, validatePersistedSession } from './lib/sessionPersistence';
 import LoginScreen from './components/LoginScreen';
 import HomeScreen from './components/HomeScreen';
 import SessionDetail from './components/SessionDetail';
@@ -32,10 +33,33 @@ function SetupScreen() {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
+  const [resumeChecked, setResumeChecked] = useState(false);
   const { session, loading } = useAuth();
 
+  useEffect(() => {
+    if (loading || !session || resumeChecked) return;
+    const persisted = loadActiveWorkout();
+    if (!persisted) {
+      setResumeChecked(true);
+      return;
+    }
+    validatePersistedSession(persisted.sessionId).then(valid => {
+      if (valid) {
+        setScreen({
+          name: 'activeWorkout',
+          sessionId: persisted.sessionId,
+          routineId: persisted.routineId,
+          routineName: persisted.routineName,
+        });
+      } else {
+        clearActiveWorkout();
+      }
+      setResumeChecked(true);
+    });
+  }, [loading, session, resumeChecked]);
+
   if (!isSupabaseConfigured) return <SetupScreen />;
-  if (loading) return <div className="app text-center text-muted mt-16">Loading...</div>;
+  if (loading || !resumeChecked) return <div className="app text-center text-muted mt-16">Loading...</div>;
   if (!session) return <LoginScreen />;
 
   return (
@@ -58,6 +82,7 @@ export default function App() {
           routineId={screen.routineId}
           routineName={screen.routineName}
           onFinish={() => setScreen({ name: 'home' })}
+          onHome={() => setScreen({ name: 'home' })}
         />
       )}
       {screen.name === 'editMode' && (

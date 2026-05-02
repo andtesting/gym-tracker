@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchRecentSessions, fetchSessionSets, fetchHeatmapSessions } from '../api/sessions';
 import { signOut } from '../hooks/useAuth';
+import { saveActiveWorkout } from '../lib/sessionPersistence';
 import { toCSV, toJSON } from '../lib/export';
 import type { ExportRow } from '../lib/export';
 import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
@@ -95,7 +96,19 @@ export default function HomeScreen({ onNavigate }: Props) {
           <div
             key={session.id}
             className="session-list-item"
-            onClick={() => onNavigate({ name: 'sessionDetail', sessionId: session.id })}
+            onClick={() => {
+              if (!session.finished_at && session.routines) {
+                const workout = {
+                  sessionId: session.id,
+                  routineId: session.routine_id!,
+                  routineName: session.routines.name,
+                };
+                saveActiveWorkout(workout);
+                onNavigate({ name: 'activeWorkout', ...workout });
+              } else {
+                onNavigate({ name: 'sessionDetail', sessionId: session.id });
+              }
+            }}
           >
             <div className="row-between">
               <div className="row" style={{ gap: 8 }}>

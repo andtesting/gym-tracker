@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchRoutines, createRoutine } from '../api/routines';
 import { createSession } from '../api/sessions';
+import { saveActiveWorkout } from '../lib/sessionPersistence';
 import type { Routine, Screen } from '../types';
 
 interface Props {
@@ -25,12 +26,13 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
     setCreating(true);
     try {
       const session = await createSession(routine.id);
-      onNavigate({
-        name: 'activeWorkout',
+      const workout = {
         sessionId: session.id,
         routineId: routine.id,
         routineName: routine.name,
-      });
+      };
+      saveActiveWorkout(workout);
+      onNavigate({ name: 'activeWorkout', ...workout });
     } catch {
       setCreating(false);
     }

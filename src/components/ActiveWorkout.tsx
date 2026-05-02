@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { updateSetRest } from '../api/sets';
+import { saveActiveWorkout, clearActiveWorkout } from '../lib/sessionPersistence';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
 import TimerDisplay from './TimerDisplay';
@@ -12,13 +13,18 @@ interface Props {
   routineId: string;
   routineName: string;
   onFinish: () => void;
+  onHome: () => void;
 }
 
-export default function ActiveWorkout({ sessionId, routineId, routineName, onFinish }: Props) {
+export default function ActiveWorkout({ sessionId, routineId, routineName, onFinish, onHome }: Props) {
   const workout = useWorkout(sessionId, routineId);
   const timer = useTimer();
   const [sessionStart] = useState(() => Date.now());
   const [sessionElapsed, setSessionElapsed] = useState(0);
+
+  useEffect(() => {
+    saveActiveWorkout({ sessionId, routineId, routineName });
+  }, [sessionId, routineId, routineName]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -38,6 +44,7 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
   async function handleFinish() {
     timer.stop();
     await workout.finish();
+    clearActiveWorkout();
     onFinish();
   }
 
@@ -54,6 +61,7 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
           <h1>{routineName}</h1>
           <span className="text-small text-muted">{formatDuration(sessionElapsed)}</span>
         </div>
+        <button className="btn-secondary btn-small" onClick={onHome}>Home</button>
       </div>
 
       <TimerDisplay mode={timer.mode} elapsed={timer.elapsed} />
