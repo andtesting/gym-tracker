@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { fetchSessionSets, deleteSession } from '../api/sessions';
 import { updateSet, deleteSet } from '../api/sets';
 import type { SetWithExercise } from '../types';
@@ -154,19 +155,19 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
               <div className="row" style={{ gap: 4 }}>
                 <button
                   className="btn-small btn-secondary"
-                  style={{ padding: '2px 8px', minHeight: 0, fontSize: '0.875rem' }}
+                  style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
                   onClick={() => handleSwapExercises(i, i - 1)}
                   disabled={i === 0}
                 >
-                  ↑
+                  <ChevronUp size={16} />
                 </button>
                 <button
                   className="btn-small btn-secondary"
-                  style={{ padding: '2px 8px', minHeight: 0, fontSize: '0.875rem' }}
+                  style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
                   onClick={() => handleSwapExercises(i, i + 1)}
                   disabled={i === grouped.length - 1}
                 >
-                  ↓
+                  <ChevronDown size={16} />
                 </button>
               </div>
             )}
@@ -201,11 +202,11 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                       background: 'none',
                       minHeight: 0,
                       padding: '2px 6px',
-                      fontSize: '1rem',
+                      lineHeight: 0,
                     }}
                     onClick={() => handleDeleteSet(set.id)}
                   >
-                    X
+                    <Trash2 size={14} />
                   </button>
                 </>
               ) : (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchRoutines, createRoutine, updateRoutine, deleteRoutine } from '../api/routines';
 import { fetchExercises, updateExercise, deleteExercise } from '../api/exercises';
 import { fetchMuscleGroups, createMuscleGroup, updateMuscleGroup, deleteMuscleGroup } from '../api/muscleGroups';
@@ -77,6 +78,27 @@ export default function EditModeScreen({ onBack }: Props) {
     setGroups(prev => prev.map(g => (g.id === id ? { ...g, name } : g)));
   }
 
+  async function handleGroupReorder(id: string, direction: 'up' | 'down') {
+    const sorted = [...groups].sort((a, b) => a.sort_order - b.sort_order);
+    const idx = sorted.findIndex(g => g.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    await Promise.all([
+      updateMuscleGroup(a.id, { sort_order: b.sort_order }),
+      updateMuscleGroup(b.id, { sort_order: a.sort_order }),
+    ]);
+    setGroups(prev =>
+      prev.map(g => {
+        if (g.id === a.id) return { ...g, sort_order: b.sort_order };
+        if (g.id === b.id) return { ...g, sort_order: a.sort_order };
+        return g;
+      }),
+    );
+  }
+
   async function handleDeleteGroup(id: string) {
     if (!window.confirm('Delete group? Exercises will move to Other.')) return;
     await deleteMuscleGroup(id);
@@ -108,7 +130,7 @@ export default function EditModeScreen({ onBack }: Props) {
     }
   }
 
-  const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <div>
@@ -277,8 +299,26 @@ export default function EditModeScreen({ onBack }: Props) {
 
       <div className="edit-section">
         <h2 className="mb-16">Muscle Groups</h2>
-        {sortedGroups.map((group) => (
+        {sortedGroups.map((group, idx) => (
           <div key={group.id} className="edit-row">
+            <div className="row" style={{ gap: 4 }}>
+              <button
+                className="btn-small btn-secondary"
+                style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
+                onClick={() => handleGroupReorder(group.id, 'up')}
+                disabled={idx === 0}
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                className="btn-small btn-secondary"
+                style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
+                onClick={() => handleGroupReorder(group.id, 'down')}
+                disabled={idx === sortedGroups.length - 1}
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
             <input
               className="edit-input"
               defaultValue={group.name}
