@@ -9,6 +9,9 @@ export interface CreateSetInput {
   reps: number;
   weight_kg: number;
   set_duration_seconds: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at?: string;
 }
 
 export async function createSet(input: CreateSetInput): Promise<WorkoutSet> {

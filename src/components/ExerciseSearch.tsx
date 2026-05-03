@@ -7,9 +7,10 @@ import MuscleGroupPicker from './MuscleGroupPicker';
 
 interface Props {
   onSelect: (exercise: Exercise) => void;
+  primaryMuscleGroupId?: string | null;
 }
 
-export default function ExerciseSearch({ onSelect }: Props) {
+export default function ExerciseSearch({ onSelect, primaryMuscleGroupId }: Props) {
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [groups, setGroups] = useState<MuscleGroup[]>([]);
   const [query, setQuery] = useState('');
@@ -29,7 +30,13 @@ export default function ExerciseSearch({ onSelect }: Props) {
   const results = searchExercises(allExercises, query);
   const exactMatch = allExercises.some(e => e.name.toLowerCase() === trimmedQuery.toLowerCase());
 
-  const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedGroups = [...groups].sort((a, b) => {
+    if (primaryMuscleGroupId) {
+      if (a.id === primaryMuscleGroupId && b.id !== primaryMuscleGroupId) return -1;
+      if (b.id === primaryMuscleGroupId && a.id !== primaryMuscleGroupId) return 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
 
   const grouped = new Map<string, Exercise[]>();
   const ungrouped: Exercise[] = [];

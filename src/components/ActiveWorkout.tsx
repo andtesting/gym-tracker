@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { updateSetRest } from '../api/sets';
@@ -21,6 +21,7 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
   const timer = useTimer();
   const [sessionStart] = useState(() => Date.now());
   const [sessionElapsed, setSessionElapsed] = useState(0);
+  const setStartedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
     saveActiveWorkout({ sessionId, routineId, routineName });
@@ -54,6 +55,20 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
 
   const activeExercise = workout.activeIndex !== null ? workout.exercises[workout.activeIndex] : null;
 
+  const primaryMuscleGroupId = (() => {
+    const counts = new Map<string, number>();
+    for (const e of workout.exercises) {
+      const mgId = e.exercise.muscle_group_id;
+      if (mgId) counts.set(mgId, (counts.get(mgId) ?? 0) + 1);
+    }
+    let best: string | null = null;
+    let bestCount = 0;
+    for (const [id, count] of counts) {
+      if (count > bestCount) { best = id; bestCount = count; }
+    }
+    return best;
+  })();
+
   return (
     <div>
       <div className="row-between mb-16">
@@ -66,7 +81,7 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
 
       <TimerDisplay mode={timer.mode} elapsed={timer.elapsed} />
 
-      <ExerciseSearch onSelect={workout.addExercise} />
+      <ExerciseSearch onSelect={workout.addExercise} primaryMuscleGroupId={primaryMuscleGroupId} />
 
       {workout.exercises.length > 0 && workout.activeIndex === null && (
         <div className="stack">
@@ -86,17 +101,22 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
           lastSessionSets={activeExercise.lastSessionSets}
           timerMode={timer.mode}
           onStartSet={() => {
+            setStartedAtRef.current = new Date().toISOString();
             const restSeconds = timer.startSet();
             if (workout.lastSetId && restSeconds > 0) {
               updateSetRest(workout.lastSetId, restSeconds);
             }
           }}
           onLogSet={async (data) => {
+            const completedAt = new Date().toISOString();
             const setDuration = timer.startRest();
             await workout.logSet(workout.activeIndex!, {
               ...data,
               set_duration_seconds: setDuration > 0 ? setDuration : null,
+              started_at: setStartedAtRef.current,
+              completed_at: completedAt,
             }, null);
+            setStartedAtRef.current = null;
           }}
           onRemoveExercise={() => workout.removeExercise(workout.activeIndex!)}
         />

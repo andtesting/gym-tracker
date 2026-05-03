@@ -107,7 +107,14 @@ export function useWorkout(sessionId: string, routineId: string) {
 
   const logSet = useCallback(async (
     exerciseIndex: number,
-    data: { reps: number; weight_kg: number; set_type: 'warmup' | 'working'; set_duration_seconds: number | null },
+    data: {
+      reps: number;
+      weight_kg: number;
+      set_type: 'warmup' | 'working';
+      set_duration_seconds: number | null;
+      started_at: string | null;
+      completed_at: string | null;
+    },
     restSecondsForPrev: number | null,
   ) => {
     if (restSecondsForPrev !== null && lastSetId) {
@@ -123,6 +130,8 @@ export function useWorkout(sessionId: string, routineId: string) {
       reps: data.reps,
       weight_kg: data.weight_kg,
       set_duration_seconds: data.set_duration_seconds,
+      started_at: data.started_at,
+      completed_at: data.completed_at,
     };
 
     const newSet = await createSet(input);
