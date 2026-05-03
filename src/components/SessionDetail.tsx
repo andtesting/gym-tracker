@@ -27,6 +27,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [pendingReps, setPendingReps] = useState('10');
   const [pendingWeight, setPendingWeight] = useState('');
   const [pendingType, setPendingType] = useState<'warmup' | 'working'>('working');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchSessionSets(sessionId)
@@ -139,7 +140,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   }
 
   async function handleAddRetroactiveSet() {
-    if (!pendingExercise) return;
+    if (!pendingExercise || submitting) return;
     const reps = parseInt(pendingReps, 10);
     const weight = parseFloat(pendingWeight);
     if (isNaN(reps) || isNaN(weight)) {
@@ -147,6 +148,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       return;
     }
     setError(null);
+    setSubmitting(true);
     try {
       const maxOrder = sets.length > 0 ? Math.max(...sets.map(s => s.set_order)) : 0;
       const backdatedCreatedAt = sets.length > 0 ? sets[0].created_at : undefined;
@@ -169,6 +171,8 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       setPendingType('working');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add set.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -327,9 +331,10 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                 className="btn-primary btn-small mt-8"
                 style={{ width: '100%' }}
                 onClick={handleAddRetroactiveSet}
+                disabled={submitting}
               >
                 <Plus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                Add Set
+                {submitting ? 'Adding...' : 'Add Set'}
               </button>
             </div>
           ) : (
