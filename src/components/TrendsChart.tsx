@@ -67,7 +67,7 @@ export default function TrendsChart({ data, mode }: Props) {
             {data.map((dp, col) => {
               const set = dp.sets.find(s => s.set_order === row + 1) ?? dp.sets[row];
               if (!set) {
-                return <div key={`${row}-${col}`} style={{ height: maxBarHeight + 20 }} />;
+                return <div key={`${row}-${col}`} style={{ height: maxBarHeight + 34 }} />;
               }
               const primary = mode === 'weight' ? set.weight_kg : set.reps;
               const secondary = mode === 'weight' ? set.reps : set.weight_kg;
@@ -81,15 +81,19 @@ export default function TrendsChart({ data, mode }: Props) {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'flex-end',
-                    height: maxBarHeight + 20,
+                    height: maxBarHeight + 34,
                   }}
                 >
+                  <div className="trends-value">
+                    {primary}
+                    {mode === 'weight' ? 'kg' : 'r'}
+                  </div>
                   <div
                     className="trends-bar"
                     style={{ height: barHeight }}
                   />
                   <div className="trends-value">
-                    {secondary > 0 ? secondary : ''}
+                    {secondary > 0 ? `${secondary}${mode === 'weight' ? 'r' : 'kg'}` : ''}
                   </div>
                 </div>
               );
