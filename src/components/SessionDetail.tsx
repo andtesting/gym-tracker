@@ -166,8 +166,6 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       });
       const refreshed = await fetchSessionSets(sessionId);
       setSets(refreshed);
-      setPendingReps('10');
-      setPendingWeight('');
       setPendingType('working');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add set.');
