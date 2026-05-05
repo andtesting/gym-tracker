@@ -31,6 +31,8 @@ function SetupScreen() {
   );
 }
 
+const loadingScreen = <div className="app text-center text-muted mt-16">Loading...</div>;
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [resumeChecked, setResumeChecked] = useState(false);
@@ -59,8 +61,9 @@ export default function App() {
   }, [loading, session, resumeChecked]);
 
   if (!isSupabaseConfigured) return <SetupScreen />;
-  if (loading || !resumeChecked) return <div className="app text-center text-muted mt-16">Loading...</div>;
+  if (loading) return loadingScreen;
   if (!session) return <LoginScreen />;
+  if (!resumeChecked) return loadingScreen;
 
   return (
     <div className="app">
