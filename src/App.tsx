@@ -59,8 +59,9 @@ export default function App() {
   }, [loading, session, resumeChecked]);
 
   if (!isSupabaseConfigured) return <SetupScreen />;
-  if (loading || !resumeChecked) return <div className="app text-center text-muted mt-16">Loading...</div>;
+  if (loading) return <div className="app text-center text-muted mt-16">Loading...</div>;
   if (!session) return <LoginScreen />;
+  if (!resumeChecked) return <div className="app text-center text-muted mt-16">Loading...</div>;
 
   return (
     <div className="app">
