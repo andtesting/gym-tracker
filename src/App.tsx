@@ -96,7 +96,7 @@ export default function App() {
         <TrendsView onBack={() => setScreen({ name: 'home' })} />
       )}
       {screen.name === 'logPastWorkout' && (
-        <LogPastWorkoutScreen onNavigate={setScreen} />
+        <LogPastWorkoutScreen onNavigate={setScreen} initialDate={screen.date} />
       )}
       {screen.name === 'retroactiveWorkout' && (
         <ActiveWorkout

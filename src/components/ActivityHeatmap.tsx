@@ -4,6 +4,7 @@ import { UNNAMED_COLOUR, NO_WORKOUT_COLOUR } from '../lib/palette';
 
 interface Props {
   sessions: HeatmapSession[];
+  onCellClick?: (date: string) => void;
 }
 
 function getMonday(d: Date): Date {
@@ -27,7 +28,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const NUM_WEEKS = 12;
 
-export default function ActivityHeatmap({ sessions }: Props) {
+export default function ActivityHeatmap({ sessions, onCellClick }: Props) {
   // Build colour lookup: date string -> colour (first session wins)
   const colourMap = new Map<string, string>();
   for (const s of sessions) {
@@ -111,14 +112,21 @@ export default function ActivityHeatmap({ sessions }: Props) {
               : (colourMap.get(dateKey) ?? NO_WORKOUT_COLOUR);
 
             return (
-              <div
+              <button
                 key={`cell-${colIdx}-${rowIdx}`}
                 title={dateKey}
+                onClick={isFuture || !onCellClick ? undefined : () => onCellClick(dateKey)}
+                disabled={isFuture}
+                aria-label={dateKey}
                 style={{
                   aspectRatio: '1',
                   borderRadius: '2px',
                   backgroundColor: colour,
                   minWidth: 0,
+                  minHeight: 0,
+                  padding: 0,
+                  border: 'none',
+                  cursor: isFuture || !onCellClick ? 'default' : 'pointer',
                 }}
               />
             );

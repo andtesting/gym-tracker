@@ -7,6 +7,7 @@ import type { ExportRow } from '../lib/export';
 import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
 import ActivityHeatmap from './ActivityHeatmap';
 import ExportDropdown from './ExportDropdown';
+import DayDetailSheet from './DayDetailSheet';
 
 interface Props {
   onNavigate: (screen: Screen) => void;
@@ -17,6 +18,11 @@ export default function HomeScreen({ onNavigate }: Props) {
   const [heatmapSessions, setHeatmapSessions] = useState<HeatmapSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [popoverDate, setPopoverDate] = useState<string | null>(null);
+
+  const sessionsForPopover = popoverDate
+    ? heatmapSessions.filter(s => s.started_at.split('T')[0] === popoverDate)
+    : [];
 
   useEffect(() => {
     const now = new Date();
@@ -85,7 +91,21 @@ export default function HomeScreen({ onNavigate }: Props) {
       {loading && <p className="text-muted text-center mt-16">Loading...</p>}
       {error && <p className="text-center mt-16" style={{ color: 'var(--color-danger)' }}>{error}</p>}
 
-      {!loading && <ActivityHeatmap sessions={heatmapSessions} />}
+      {!loading && (
+        <ActivityHeatmap
+          sessions={heatmapSessions}
+          onCellClick={(date) => setPopoverDate(date)}
+        />
+      )}
+
+      {popoverDate && (
+        <DayDetailSheet
+          date={popoverDate}
+          sessions={sessionsForPopover}
+          onClose={() => setPopoverDate(null)}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {!loading && sessions.length === 0 && (
         <p className="text-muted text-center mt-16">No workouts yet. Start your first one!</p>
