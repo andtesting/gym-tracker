@@ -1,0 +1,108 @@
+# AGENTS.md — Gym Tracker
+
+Stable context for any agent working in this repo. Read this first.
+
+## What this is
+
+A single-user PWA gym tracker. Built for Andy's phone (PWA on iOS home screen). Tracks workout sessions, sets, and trends. Deployed to GitHub Pages at <https://andtesting.github.io/gym-tracker/>.
+
+## Stack
+
+- React 19 + TypeScript + Vite 6
+- Supabase (auth + Postgres + RLS)
+- `vite-plugin-pwa` for offline shell / installability
+- `lucide-react` for icons
+- `vitest` + `@testing-library/react` + jsdom for tests
+- No router. Screen state is a discriminated union in `src/types.ts` (`Screen`) and lives in `App.tsx` `useState`.
+
+## Directory map
+
+```
+src/
+  api/          Supabase calls (one file per table): exercises, muscleGroups, routines, sessions, sets
+  components/   One screen or widget per file. Screens: HomeScreen, PickRoutineScreen, ActiveWorkout,
+                SessionDetail, EditModeScreen, TrendsView, LoginScreen.
+  hooks/        useAuth, useTimer, useWorkout (the active-session state machine)
+  lib/          Pure helpers: timer, search, palette, export, sessionPersistence (localStorage)
+  types.ts      Shared types. `Screen` discriminated union drives navigation.
+  supabase.ts   Singleton client; `isSupabaseConfigured` gate.
+  App.tsx       Auth gate + screen switch + cold-start active-workout resume.
+sql/schema.sql  Single-file schema, RLS policies, seed data. Run in Supabase SQL Editor.
+tests/lib/      Vitest unit tests (pure helpers only — no component or integration tests yet).
+docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirements.md).
+```
+
+## Data model (Supabase)
+
+```
+muscle_groups (id, name, sort_order)
+routines      (id, name, color)                  # "back A", "chest A", etc.
+exercises     (id, name, muscle_group_id)        # built organically as user creates them
+sessions      (id, routine_id, started_at, finished_at, notes)
+sets          (id, session_id, exercise_id, set_order, set_type, reps, weight_kg,
+               set_duration_seconds, rest_seconds, started_at, completed_at, created_at)
+```
+
+- `set_type` is `'warmup' | 'working'`.
+- RLS: every table has policy `authenticated access` allowing any authenticated user full CRUD. This is a single-user app; users do not see each other's data because there is only ever one user account per Supabase project.
+- `started_at`/`completed_at` on sets capture wall-clock for future heart-rate-monitor integration (AND-16).
+- Retroactive set adds backdate `created_at` to the session's first set's `created_at` so grouping stays correct (see `SessionDetail.handleAddRetroactiveSet`).
+
+## App architecture
+
+**Screen state.** `App.tsx` holds the current `Screen`. Each screen component gets an `onNavigate` or `onBack`/`onFinish`. No router, no URLs.
+
+**Active workout state.** `useWorkout(sessionId, routineId)` is the workhorse hook for `ActiveWorkout`. On mount it fetches:
+
+1. The last completed session for this routine (for the "Last Session" reference column).
+2. The sets already logged in the current session (so resumed sessions show progress).
+
+It merges these into an ordered list of `ActiveExercise = { exercise, sets, lastSessionSets }`. Exercises from the prior session that haven't been started yet still appear so the user has the plan in front of them.
+
+**Resume.** `sessionPersistence` writes the current `{sessionId, routineId, routineName}` to `localStorage`. On cold start, `App.tsx` reads it, validates the session is still unfinished via Supabase, and jumps straight into `ActiveWorkout`. See `docs/AND-11-session-resume-requirements.md`.
+
+**Timer.** `useTimer` is a three-state machine: `idle | set | rest`. `lib/timer.ts` is the pure version (unit-tested).
+
+## Conventions
+
+- **Mobile-first.** Layout is constrained to `max-width: 480px`. All buttons have `min-height: 44px` (`--touch-min`). Fixed `bottom-bar` and `bottom-bar-two-row` for primary actions.
+- **Styling.** Plain CSS in `src/App.css` with CSS custom properties. No CSS modules, no Tailwind, no styled-components. Inline `style={}` is fine for one-offs.
+- **No comments unless WHY is non-obvious.** Don't restate what code does.
+- **Error handling.** Components show errors inline via local `error` state; we don't have a global toast/error boundary system.
+- **Confirmations.** Destructive actions use `window.confirm`. Keep it.
+- **Imports.** Always import `import type { ... }` for types-only.
+- **Tests.** Pure helpers in `lib/` are unit-tested; UI components are not (deliberate — we use Chrome dev tools for UI verification).
+
+## Workflow
+
+- **Branches:** `fix/and-NN-slug` or `feature/and-NN-slug`. Linear ID always present.
+- **Issues:** Logged in Linear team `Andy C`, project `Gym Tracker`. Identifiers `AND-NN`.
+- **Commits:** Conventional commits (`fix:`, `feat:`, `refactor:`).
+- **PRs:** Merged to `main`. GitHub Actions auto-deploys to GitHub Pages on push to `main` (`.github/workflows/deploy.yml`).
+- **Supabase schema changes:** Update `sql/schema.sql` AND apply via Supabase SQL Editor or migration. There is no migration runner — `schema.sql` is the source of truth for fresh installs; changes to a live DB are applied by hand.
+
+## Running locally
+
+```
+npm install
+cp .env.example .env        # fill in VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+npm run dev                 # vite, http://localhost:5173/gym-tracker/
+npm run build               # tsc -b && vite build
+npm run lint
+npx vitest                  # unit tests
+```
+
+Base path is `/gym-tracker/` for both dev and prod (GitHub Pages constraint).
+
+## Verification
+
+UI changes are verified via Claude-in-Chrome MCP, not test suites. Treat `tests/` as the contract for pure helpers only. For UI work: start the dev server, drive the flow in Chrome, screenshot if it matters.
+
+## Things that don't yet exist
+
+- No offline write queue (sets are sent to Supabase synchronously; offline = blocked). Tracked as AND-8.
+- No supersets/circuits (AND-10).
+- No per-exercise rest defaults / countdown timer (AND-6).
+- No notes or RPE (AND-9).
+
+When adding features, check the Linear backlog first — there's a decent chance there's already an issue with prior thinking attached.
