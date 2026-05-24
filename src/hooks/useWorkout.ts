@@ -141,7 +141,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     },
     restSecondsForPrev: number | null,
     createdAt?: string,
-  ) => {
+  ): Promise<WorkoutSet> => {
     if (restSecondsForPrev !== null && lastSetId) {
       await updateSetRest(lastSetId, restSecondsForPrev);
     }
@@ -166,6 +166,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     ));
     setSetOrder(prev => prev + 1);
     setLastSetId(newSet.id);
+    return newSet;
   }, [sessionId, exercises, setOrder, lastSetId]);
 
   const editSet = useCallback(async (

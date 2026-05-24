@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchRoutines } from '../api/routines';
-import { createSession } from '../api/sessions';
+import { createSession, finishSession, deleteSession } from '../api/sessions';
 import type { Routine, Screen } from '../types';
 
 interface Props {
@@ -32,15 +32,25 @@ export default function LogPastWorkoutScreen({ onNavigate }: Props) {
 
   async function handleContinue() {
     if (!selectedRoutineId || !date) return;
+    if (date > todayLocalIso()) {
+      setError('Date cannot be in the future.');
+      return;
+    }
     const routine = routines.find(r => r.id === selectedRoutineId);
     if (!routine) return;
     setError(null);
     setCreating(true);
+    let createdId: string | null = null;
     try {
-      // Anchor session start at midday on the picked date so it lands cleanly
-      // in heatmap buckets and doesn't accidentally roll into the prior day.
+      // Anchor at noon local time so it lands on the right heatmap day.
       const startedAt = new Date(`${date}T12:00:00`).toISOString();
+      const finishedAt = new Date(`${date}T12:30:00`).toISOString();
       const session = await createSession(routine.id, startedAt);
+      createdId = session.id;
+      // Mark finished immediately so the session never appears as "In progress"
+      // on Home (which would otherwise route through the live ActiveWorkout
+      // flow and stamp today's timestamps onto a past-dated session).
+      await finishSession(session.id, finishedAt);
       onNavigate({
         name: 'retroactiveWorkout',
         sessionId: session.id,
@@ -49,6 +59,9 @@ export default function LogPastWorkoutScreen({ onNavigate }: Props) {
         date,
       });
     } catch (e) {
+      if (createdId) {
+        await deleteSession(createdId).catch(() => {});
+      }
       setError(e instanceof Error ? e.message : 'Failed to create session');
       setCreating(false);
     }

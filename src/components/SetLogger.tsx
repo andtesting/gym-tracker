@@ -12,7 +12,7 @@ interface Props {
   timerMode: 'idle' | 'rest' | 'set';
   retroactive?: boolean;
   onStartSet: () => void;
-  onLogSet: (data: { reps: number; weight_kg: number; set_type: 'warmup' | 'working' }) => void;
+  onLogSet: (data: { reps: number; weight_kg: number; set_type: 'warmup' | 'working' }) => Promise<void>;
   onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number }) => Promise<void>;
   onDeleteSet: (setId: string) => Promise<void>;
   onRemoveExercise: () => void;
@@ -40,34 +40,57 @@ export default function SetLogger({
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleLog() {
+  async function handleLog() {
+    if (submitting) return;
     const r = parseInt(reps, 10);
     const w = parseFloat(weight);
     if (isNaN(r) || isNaN(w) || r <= 0 || w < 0) return;
-    onLogSet({ reps: r, weight_kg: w, set_type: setType });
-    setReps('');
-    setWeight('');
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onLogSet({ reps: r, weight_kg: w, set_type: setType });
+      setReps('');
+      setWeight('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to log set');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function startEdit(set: WorkoutSet) {
     setEditingSetId(set.id);
     setEditReps(String(set.reps));
     setEditWeight(String(set.weight_kg));
+    setError(null);
   }
 
   async function commitEdit(set: WorkoutSet) {
     const r = parseInt(editReps, 10);
     const w = parseFloat(editWeight);
-    setEditingSetId(null);
-    if (isNaN(r) || isNaN(w)) return;
-    if (r === set.reps && w === set.weight_kg) return;
-    await onEditSet(set.id, { reps: r, weight_kg: w });
+    if (isNaN(r) || isNaN(w) || r === set.reps && w === set.weight_kg) {
+      setEditingSetId(null);
+      return;
+    }
+    try {
+      await onEditSet(set.id, { reps: r, weight_kg: w });
+      setEditingSetId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save edit');
+      // Keep the editor open so the user can retry or revert.
+    }
   }
 
   async function handleDelete(setId: string) {
     if (!window.confirm('Delete this set?')) return;
-    await onDeleteSet(setId);
+    try {
+      await onDeleteSet(setId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete set');
+    }
   }
 
   const inSet = timerMode === 'set';
@@ -101,8 +124,8 @@ export default function SetLogger({
             <p className="text-small text-muted mt-8">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header mt-8">
-                <span>#</span><span>Type</span><span>Reps</span><span>Weight</span>
+              <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '24px 1fr 1fr 1fr 28px' }}>
+                <span>#</span><span>Type</span><span>Reps</span><span>Weight</span><span />
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
@@ -110,7 +133,7 @@ export default function SetLogger({
                   <div
                     key={set.id}
                     className="set-row"
-                    style={editing ? { gridTemplateColumns: '24px 1fr 1fr 1fr 28px' } : { gridTemplateColumns: '24px 1fr 1fr 1fr 28px' }}
+                    style={{ gridTemplateColumns: '24px 1fr 1fr 1fr 28px' }}
                   >
                     <span>{i + 1}</span>
                     <span>{set.set_type}</span>
@@ -167,18 +190,27 @@ export default function SetLogger({
         </div>
       </div>
 
+      {error && (
+        <p className="text-small mt-8" style={{ color: 'var(--color-danger)' }}>{error}</p>
+      )}
+
       <div className="mt-16">
         {!canLog ? (
-          <button className="btn-primary mb-16" onClick={onStartSet}>
+          <button
+            className="btn-primary mb-16"
+            onClick={onStartSet}
+            disabled={submitting}
+          >
             Start Set
           </button>
         ) : (
           <button
             className="btn-primary mb-16"
             onClick={handleLog}
+            disabled={submitting}
             style={{ background: 'var(--color-success)' }}
           >
-            {retroactive ? 'Add Set' : 'Log Set'}
+            {submitting ? 'Saving…' : retroactive ? 'Add Set' : 'Log Set'}
           </button>
         )}
 

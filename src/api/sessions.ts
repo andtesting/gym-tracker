@@ -94,6 +94,10 @@ export async function fetchHeatmapSessions(startDate: string, endDate: string): 
 // Returns the most recent finished session for each exercise across ALL routines,
 // keyed by exercise_id. Used during an active workout so the user can see prior
 // performance for an exercise even when it was last done under a different routine.
+//
+// Note: PostgREST's `referencedTable` ordering only sorts nested arrays, not
+// outer rows. To pick the "most recent" session per exercise we must sort
+// client-side after pulling all rows.
 export async function fetchLastSetsForExercises(
   exerciseIds: string[],
 ): Promise<Map<string, ExerciseHistoryEntry>> {
@@ -103,19 +107,23 @@ export async function fetchLastSetsForExercises(
     .from('sets')
     .select('*, sessions!inner(*, routines(*))')
     .in('exercise_id', exerciseIds)
-    .not('sessions.finished_at', 'is', null)
-    .order('started_at', { referencedTable: 'sessions', ascending: false })
-    .order('set_order');
+    .not('sessions.finished_at', 'is', null);
   if (error) throw error;
 
-  // Group rows by exercise → take the most recent session_id seen, then collect
-  // every set from that session for that exercise.
   type Row = WorkoutSet & { sessions: SessionWithRoutine };
   const rows = data as unknown as Row[];
 
-  // Walk rows in (session-date DESC, set_order ASC) order. First session_id we
-  // see for each exercise_id wins; collect all sets sharing that session_id.
-  const winningSession = new Map<string, string>(); // exercise_id -> session_id
+  // Sort by session.started_at DESC, tie-break by session.id (stable) so the
+  // "first session seen per exercise" is deterministically the most recent.
+  rows.sort((a, b) => {
+    const cmp = b.sessions.started_at.localeCompare(a.sessions.started_at);
+    if (cmp !== 0) return cmp;
+    const idCmp = b.sessions.id.localeCompare(a.sessions.id);
+    if (idCmp !== 0) return idCmp;
+    return a.set_order - b.set_order;
+  });
+
+  const winningSession = new Map<string, string>();
   const result = new Map<string, ExerciseHistoryEntry>();
 
   for (const row of rows) {
@@ -141,6 +149,11 @@ export async function fetchLastSetsForExercises(
       };
       result.get(row.exercise_id)!.sets.push(rest);
     }
+  }
+
+  // Ensure each entry's sets are in set_order ascending order for display.
+  for (const entry of result.values()) {
+    entry.sets.sort((a, b) => a.set_order - b.set_order);
   }
 
   return result;
