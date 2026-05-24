@@ -67,8 +67,9 @@ export interface RoutineSessionHistory {
 }
 
 export interface HeatmapSession {
+  id: string;
   started_at: string;
-  routines: { color: string } | null;
+  routines: { name: string; color: string } | null;
 }
 
 export type Screen =
@@ -76,7 +77,7 @@ export type Screen =
   | { name: 'sessionDetail'; sessionId: string }
   | { name: 'pickRoutine' }
   | { name: 'activeWorkout'; sessionId: string; routineId: string; routineName: string }
-  | { name: 'logPastWorkout' }
+  | { name: 'logPastWorkout'; date?: string }
   | { name: 'retroactiveWorkout'; sessionId: string; routineId: string; routineName: string; date: string }
   | { name: 'editMode' }
   | { name: 'trends' };

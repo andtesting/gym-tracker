@@ -83,7 +83,7 @@ export async function fetchLastSession(routineId: string): Promise<LastSessionDa
 export async function fetchHeatmapSessions(startDate: string, endDate: string): Promise<HeatmapSession[]> {
   const { data, error } = await supabase
     .from('sessions')
-    .select('started_at, routines(color)')
+    .select('id, started_at, routines(name, color)')
     .gte('started_at', startDate)
     .lte('started_at', endDate)
     .order('started_at');

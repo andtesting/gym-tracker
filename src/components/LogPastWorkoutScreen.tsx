@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { fetchRoutines } from '../api/routines';
+import { Plus } from 'lucide-react';
+import { fetchRoutines, createRoutine } from '../api/routines';
 import { createSession, finishSession, deleteSession } from '../api/sessions';
 import type { Routine, Screen } from '../types';
 
 interface Props {
   onNavigate: (screen: Screen) => void;
+  initialDate?: string;
 }
 
 function todayLocalIso(): string {
@@ -15,13 +17,16 @@ function todayLocalIso(): string {
   return `${y}-${m}-${d}`;
 }
 
-export default function LogPastWorkoutScreen({ onNavigate }: Props) {
+export default function LogPastWorkoutScreen({ onNavigate, initialDate }: Props) {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(todayLocalIso());
+  const [date, setDate] = useState(initialDate ?? todayLocalIso());
   const [selectedRoutineId, setSelectedRoutineId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addingRoutine, setAddingRoutine] = useState(false);
+  const [newRoutineName, setNewRoutineName] = useState('');
+  const [addingBusy, setAddingBusy] = useState(false);
 
   useEffect(() => {
     fetchRoutines()
@@ -29,6 +34,24 @@ export default function LogPastWorkoutScreen({ onNavigate }: Props) {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleAddRoutine() {
+    const trimmed = newRoutineName.trim();
+    if (!trimmed || addingBusy) return;
+    setAddingBusy(true);
+    setError(null);
+    try {
+      const routine = await createRoutine(trimmed, routines.length);
+      setRoutines(prev => [...prev, routine].sort((a, b) => a.name.localeCompare(b.name)));
+      setSelectedRoutineId(routine.id);
+      setNewRoutineName('');
+      setAddingRoutine(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add routine');
+    } finally {
+      setAddingBusy(false);
+    }
+  }
 
   async function handleContinue() {
     if (!selectedRoutineId || !date) return;
@@ -42,14 +65,10 @@ export default function LogPastWorkoutScreen({ onNavigate }: Props) {
     setCreating(true);
     let createdId: string | null = null;
     try {
-      // Anchor at noon local time so it lands on the right heatmap day.
       const startedAt = new Date(`${date}T12:00:00`).toISOString();
       const finishedAt = new Date(`${date}T12:30:00`).toISOString();
       const session = await createSession(routine.id, startedAt);
       createdId = session.id;
-      // Mark finished immediately so the session never appears as "In progress"
-      // on Home (which would otherwise route through the live ActiveWorkout
-      // flow and stamp today's timestamps onto a past-dated session).
       await finishSession(session.id, finishedAt);
       onNavigate({
         name: 'retroactiveWorkout',
@@ -116,6 +135,40 @@ export default function LogPastWorkoutScreen({ onNavigate }: Props) {
                 </div>
               </button>
             ))}
+
+            {addingRoutine ? (
+              <div className="row">
+                <input
+                  value={newRoutineName}
+                  onChange={e => setNewRoutineName(e.target.value)}
+                  placeholder="Routine name"
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddRoutine(); }}
+                  autoFocus
+                />
+                <button
+                  className="btn-primary btn-small"
+                  onClick={handleAddRoutine}
+                  disabled={addingBusy || !newRoutineName.trim()}
+                >
+                  {addingBusy ? '...' : 'Add'}
+                </button>
+                <button
+                  className="btn-secondary btn-small"
+                  onClick={() => { setAddingRoutine(false); setNewRoutineName(''); }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn-secondary"
+                onClick={() => setAddingRoutine(true)}
+                style={{ borderStyle: 'dashed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                <Plus size={14} />
+                Add routine
+              </button>
+            )}
           </div>
         </>
       )}
