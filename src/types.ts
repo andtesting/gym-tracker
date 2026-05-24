@@ -56,6 +56,16 @@ export interface LastSessionData {
   sets: SetWithExercise[];
 }
 
+export interface ExerciseHistoryEntry {
+  session: SessionWithRoutine;
+  sets: WorkoutSet[];
+}
+
+export interface RoutineSessionHistory {
+  session: SessionWithRoutine;
+  sets: SetWithExercise[];
+}
+
 export interface HeatmapSession {
   started_at: string;
   routines: { color: string } | null;
@@ -66,5 +76,7 @@ export type Screen =
   | { name: 'sessionDetail'; sessionId: string }
   | { name: 'pickRoutine' }
   | { name: 'activeWorkout'; sessionId: string; routineId: string; routineName: string }
+  | { name: 'logPastWorkout' }
+  | { name: 'retroactiveWorkout'; sessionId: string; routineId: string; routineName: string; date: string }
   | { name: 'editMode' }
   | { name: 'trends' };

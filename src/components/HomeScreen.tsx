@@ -152,6 +152,13 @@ export default function HomeScreen({ onNavigate }: Props) {
         <button className="btn-primary" onClick={() => onNavigate({ name: 'pickRoutine' })}>
           Start Workout
         </button>
+        <button
+          className="btn-secondary"
+          style={{ width: '100%' }}
+          onClick={() => onNavigate({ name: 'logPastWorkout' })}
+        >
+          Log past workout
+        </button>
       </div>
     </div>
   );
