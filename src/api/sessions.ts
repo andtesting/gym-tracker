@@ -1,5 +1,14 @@
 import { supabase } from '../supabase';
-import type { Session, SessionWithRoutine, SetWithExercise, LastSessionData, HeatmapSession } from '../types';
+import type {
+  Session,
+  SessionWithRoutine,
+  SetWithExercise,
+  WorkoutSet,
+  LastSessionData,
+  HeatmapSession,
+  ExerciseHistoryEntry,
+  RoutineSessionHistory,
+} from '../types';
 
 export async function fetchRecentSessions(limit = 20): Promise<SessionWithRoutine[]> {
   const { data, error } = await supabase
@@ -11,20 +20,22 @@ export async function fetchRecentSessions(limit = 20): Promise<SessionWithRoutin
   return data;
 }
 
-export async function createSession(routineId: string): Promise<Session> {
+export async function createSession(routineId: string, startedAt?: string): Promise<Session> {
+  const row: Record<string, unknown> = { routine_id: routineId };
+  if (startedAt) row.started_at = startedAt;
   const { data, error } = await supabase
     .from('sessions')
-    .insert({ routine_id: routineId })
+    .insert(row)
     .select()
     .single();
   if (error) throw error;
   return data;
 }
 
-export async function finishSession(sessionId: string): Promise<void> {
+export async function finishSession(sessionId: string, finishedAt?: string): Promise<void> {
   const { error } = await supabase
     .from('sessions')
-    .update({ finished_at: new Date().toISOString() })
+    .update({ finished_at: finishedAt ?? new Date().toISOString() })
     .eq('id', sessionId);
   if (error) throw error;
 }
@@ -78,6 +89,97 @@ export async function fetchHeatmapSessions(startDate: string, endDate: string): 
     .order('started_at');
   if (error) throw error;
   return data as unknown as HeatmapSession[];
+}
+
+// Returns the most recent finished session for each exercise across ALL routines,
+// keyed by exercise_id. Used during an active workout so the user can see prior
+// performance for an exercise even when it was last done under a different routine.
+export async function fetchLastSetsForExercises(
+  exerciseIds: string[],
+): Promise<Map<string, ExerciseHistoryEntry>> {
+  if (exerciseIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('sets')
+    .select('*, sessions!inner(*, routines(*))')
+    .in('exercise_id', exerciseIds)
+    .not('sessions.finished_at', 'is', null)
+    .order('started_at', { referencedTable: 'sessions', ascending: false })
+    .order('set_order');
+  if (error) throw error;
+
+  // Group rows by exercise → take the most recent session_id seen, then collect
+  // every set from that session for that exercise.
+  type Row = WorkoutSet & { sessions: SessionWithRoutine };
+  const rows = data as unknown as Row[];
+
+  // Walk rows in (session-date DESC, set_order ASC) order. First session_id we
+  // see for each exercise_id wins; collect all sets sharing that session_id.
+  const winningSession = new Map<string, string>(); // exercise_id -> session_id
+  const result = new Map<string, ExerciseHistoryEntry>();
+
+  for (const row of rows) {
+    if (!row.exercise_id) continue;
+    if (!winningSession.has(row.exercise_id)) {
+      winningSession.set(row.exercise_id, row.session_id);
+      result.set(row.exercise_id, { session: row.sessions, sets: [] });
+    }
+    if (winningSession.get(row.exercise_id) === row.session_id) {
+      const rest: WorkoutSet = {
+        id: row.id,
+        session_id: row.session_id,
+        exercise_id: row.exercise_id,
+        set_order: row.set_order,
+        set_type: row.set_type,
+        reps: row.reps,
+        weight_kg: row.weight_kg,
+        set_duration_seconds: row.set_duration_seconds,
+        rest_seconds: row.rest_seconds,
+        started_at: row.started_at,
+        completed_at: row.completed_at,
+        created_at: row.created_at,
+      };
+      result.get(row.exercise_id)!.sets.push(rest);
+    }
+  }
+
+  return result;
+}
+
+// Last N finished sessions for a routine, each with full set list. Used by the
+// in-workout history overlay so the user can compare against multiple prior runs.
+export async function fetchRecentRoutineSessions(
+  routineId: string,
+  limit = 5,
+): Promise<RoutineSessionHistory[]> {
+  const { data: sessions, error: sessionErr } = await supabase
+    .from('sessions')
+    .select('*, routines(*)')
+    .eq('routine_id', routineId)
+    .not('finished_at', 'is', null)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (sessionErr) throw sessionErr;
+  if (sessions.length === 0) return [];
+
+  const ids = sessions.map(s => s.id);
+  const { data: sets, error: setsErr } = await supabase
+    .from('sets')
+    .select('*, exercises(*, muscle_groups(*))')
+    .in('session_id', ids)
+    .order('set_order');
+  if (setsErr) throw setsErr;
+
+  const setsBySession = new Map<string, SetWithExercise[]>();
+  for (const s of sets) {
+    const arr = setsBySession.get(s.session_id) ?? [];
+    arr.push(s);
+    setsBySession.set(s.session_id, arr);
+  }
+  return sessions.map(session => ({
+    session,
+    sets: setsBySession.get(session.id) ?? [],
+  }));
 }
 
 export async function fetchExerciseTrends(exerciseId: string, limit = 8) {

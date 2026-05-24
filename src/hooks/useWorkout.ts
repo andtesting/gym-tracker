@@ -1,85 +1,100 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchLastSession, fetchSessionSets, finishSession } from '../api/sessions';
-import { createSet, updateSetRest } from '../api/sets';
-import type { Exercise, WorkoutSet, SetWithExercise, LastSessionData } from '../types';
+import {
+  fetchLastSession,
+  fetchSessionSets,
+  finishSession,
+  fetchLastSetsForExercises,
+} from '../api/sessions';
+import { createSet, updateSet as apiUpdateSet, deleteSet as apiDeleteSet, updateSetRest } from '../api/sets';
+import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import type { CreateSetInput } from '../api/sets';
 
-interface ActiveExercise {
+export interface ActiveExercise {
   exercise: Exercise;
   sets: WorkoutSet[];
-  lastSessionSets: SetWithExercise[];
+  // Cross-routine: most recent prior performance of this exercise across ALL routines.
+  history: ExerciseHistoryEntry | null;
 }
 
-export function useWorkout(sessionId: string, routineId: string) {
+interface UseWorkoutOptions {
+  retroactive?: boolean;
+}
+
+export function useWorkout(sessionId: string, routineId: string, opts: UseWorkoutOptions = {}) {
   const [exercises, setExercises] = useState<ActiveExercise[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [setOrder, setSetOrder] = useState(1);
   const [lastSetId, setLastSetId] = useState<string | null>(null);
-  const [lastSessionData, setLastSessionData] = useState<LastSessionData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const lastSessionPromise = fetchLastSession(routineId).catch((e) => {
-      console.error('Failed to fetch last session:', e);
+    const lastSamePromise = fetchLastSession(routineId).catch((e) => {
+      console.error('Failed to fetch last same-routine session:', e);
       return null;
     });
 
-    Promise.all([
-      lastSessionPromise,
-      fetchSessionSets(sessionId),
-    ])
-      .then(([lastData, currentSets]) => {
-        setLastSessionData(lastData);
-
-        const lastSetsMap = new Map<string, SetWithExercise[]>();
-        if (lastData) {
-          for (const set of lastData.sets) {
-            if (!set.exercise_id || !set.exercises) continue;
-            const arr = lastSetsMap.get(set.exercise_id) ?? [];
-            arr.push(set);
-            lastSetsMap.set(set.exercise_id, arr);
-          }
-        }
-
+    Promise.all([lastSamePromise, fetchSessionSets(sessionId)])
+      .then(async ([lastSameRoutine, currentSets]) => {
+        // Build ordered list: current-session exercises first (in set_order),
+        // then pre-populate any leftover exercises from the most recent
+        // same-routine session that we haven't touched yet.
         const exerciseMap = new Map<string, ActiveExercise>();
         const exerciseOrder: string[] = [];
 
         for (const set of currentSets) {
           if (!set.exercise_id || !set.exercises) continue;
-          const key = set.exercise_id;
-          if (!exerciseMap.has(key)) {
-            exerciseMap.set(key, {
+          if (!exerciseMap.has(set.exercise_id)) {
+            exerciseMap.set(set.exercise_id, {
               exercise: set.exercises,
               sets: [],
-              lastSessionSets: lastSetsMap.get(key) ?? [],
+              history: null,
             });
-            exerciseOrder.push(key);
+            exerciseOrder.push(set.exercise_id);
           }
-          exerciseMap.get(key)!.sets.push(set);
+          exerciseMap.get(set.exercise_id)!.sets.push(set);
         }
 
-        if (lastData) {
-          for (const set of lastData.sets) {
+        if (lastSameRoutine) {
+          for (const set of lastSameRoutine.sets) {
             if (!set.exercise_id || !set.exercises) continue;
             if (!exerciseMap.has(set.exercise_id)) {
               exerciseMap.set(set.exercise_id, {
                 exercise: set.exercises,
                 sets: [],
-                lastSessionSets: lastSetsMap.get(set.exercise_id) ?? [],
+                history: null,
               });
               exerciseOrder.push(set.exercise_id);
             }
           }
         }
 
+        // Cross-routine history (AND-25): for every exercise on the plan,
+        // fetch the most recent prior performance regardless of routine.
+        const historyByExercise = await fetchLastSetsForExercises(exerciseOrder).catch((e) => {
+          console.error('Failed to fetch cross-routine history:', e);
+          return new Map<string, ExerciseHistoryEntry>();
+        });
+        // Drop "history" entries that point at the current session itself.
+        for (const exId of exerciseOrder) {
+          const entry = historyByExercise.get(exId);
+          if (entry && entry.session.id !== sessionId) {
+            exerciseMap.get(exId)!.history = entry;
+          }
+        }
+
         const result = exerciseOrder.map(id => exerciseMap.get(id)!);
         setExercises(result);
-        if (result.length > 0) setActiveIndex(0);
 
+        // Resumed session: jump back to where the user was (last exercise touched).
+        // Fresh session: stay on plan view (activeIndex = null) so the user sees
+        // the full plan before diving in (AND-26).
         if (currentSets.length > 0) {
+          const lastSet = currentSets[currentSets.length - 1];
+          const idx = exerciseOrder.findIndex(id => id === lastSet.exercise_id);
+          if (idx !== -1) setActiveIndex(idx);
           const maxOrder = Math.max(...currentSets.map(s => s.set_order));
           setSetOrder(maxOrder + 1);
-          setLastSetId(currentSets[currentSets.length - 1].id);
+          setLastSetId(lastSet.id);
         }
       })
       .catch((e) => console.error('Failed to load session data:', e))
@@ -88,17 +103,26 @@ export function useWorkout(sessionId: string, routineId: string) {
 
   const addExercise = useCallback((exercise: Exercise) => {
     setExercises(prev => {
-      const exists = prev.some(e => e.exercise.id === exercise.id);
-      if (exists) {
-        setActiveIndex(prev.findIndex(e => e.exercise.id === exercise.id));
+      const existing = prev.findIndex(e => e.exercise.id === exercise.id);
+      if (existing !== -1) {
+        setActiveIndex(existing);
         return prev;
       }
-      const lastSets = lastSessionData?.sets.filter(s => s.exercise_id === exercise.id) ?? [];
-      const next = [...prev, { exercise, sets: [], lastSessionSets: lastSets }];
+      const next = [...prev, { exercise, sets: [], history: null }];
+      // Lazy-load history for the newly added exercise.
+      fetchLastSetsForExercises([exercise.id])
+        .then(map => {
+          const entry = map.get(exercise.id);
+          if (!entry || entry.session.id === sessionId) return;
+          setExercises(curr => curr.map(e =>
+            e.exercise.id === exercise.id ? { ...e, history: entry } : e,
+          ));
+        })
+        .catch(() => {});
       setActiveIndex(next.length - 1);
       return next;
     });
-  }, [lastSessionData]);
+  }, [sessionId]);
 
   const removeExercise = useCallback((index: number) => {
     setExercises(prev => prev.filter((_, i) => i !== index));
@@ -116,6 +140,7 @@ export function useWorkout(sessionId: string, routineId: string) {
       completed_at: string | null;
     },
     restSecondsForPrev: number | null,
+    createdAt?: string,
   ) => {
     if (restSecondsForPrev !== null && lastSetId) {
       await updateSetRest(lastSetId, restSecondsForPrev);
@@ -133,17 +158,42 @@ export function useWorkout(sessionId: string, routineId: string) {
       started_at: data.started_at,
       completed_at: data.completed_at,
     };
+    if (createdAt) input.created_at = createdAt;
 
     const newSet = await createSet(input);
     setExercises(prev => prev.map((e, i) =>
-      i === exerciseIndex ? { ...e, sets: [...e.sets, newSet] } : e
+      i === exerciseIndex ? { ...e, sets: [...e.sets, newSet] } : e,
     ));
     setSetOrder(prev => prev + 1);
     setLastSetId(newSet.id);
   }, [sessionId, exercises, setOrder, lastSetId]);
 
-  const finish = useCallback(async () => {
-    await finishSession(sessionId);
+  const editSet = useCallback(async (
+    exerciseIndex: number,
+    setId: string,
+    updates: { reps?: number; weight_kg?: number },
+  ) => {
+    await apiUpdateSet(setId, updates);
+    setExercises(prev => prev.map((e, i) => {
+      if (i !== exerciseIndex) return e;
+      return {
+        ...e,
+        sets: e.sets.map(s => s.id === setId ? { ...s, ...updates } : s),
+      };
+    }));
+  }, []);
+
+  const deleteSet = useCallback(async (exerciseIndex: number, setId: string) => {
+    await apiDeleteSet(setId);
+    setExercises(prev => prev.map((e, i) => {
+      if (i !== exerciseIndex) return e;
+      return { ...e, sets: e.sets.filter(s => s.id !== setId) };
+    }));
+    if (lastSetId === setId) setLastSetId(null);
+  }, [lastSetId]);
+
+  const finish = useCallback(async (finishedAt?: string) => {
+    await finishSession(sessionId, finishedAt);
   }, [sessionId]);
 
   return {
@@ -153,8 +203,11 @@ export function useWorkout(sessionId: string, routineId: string) {
     addExercise,
     removeExercise,
     logSet,
+    editSet,
+    deleteSet,
     finish,
     loading,
     lastSetId,
+    retroactive: opts.retroactive ?? false,
   };
 }

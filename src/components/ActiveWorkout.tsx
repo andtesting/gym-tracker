@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Clock } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { updateSetRest } from '../api/sets';
@@ -7,32 +8,47 @@ import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
 import TimerDisplay from './TimerDisplay';
 import RunningLog from './RunningLog';
+import SessionHistorySheet from './SessionHistorySheet';
 
 interface Props {
   sessionId: string;
   routineId: string;
   routineName: string;
+  retroactive?: boolean;
+  retroactiveDate?: string;
   onFinish: () => void;
   onHome: () => void;
 }
 
-export default function ActiveWorkout({ sessionId, routineId, routineName, onFinish, onHome }: Props) {
-  const workout = useWorkout(sessionId, routineId);
+export default function ActiveWorkout({
+  sessionId,
+  routineId,
+  routineName,
+  retroactive = false,
+  retroactiveDate,
+  onFinish,
+  onHome,
+}: Props) {
+  const workout = useWorkout(sessionId, routineId, { retroactive });
   const timer = useTimer();
   const [sessionStart] = useState(() => Date.now());
   const [sessionElapsed, setSessionElapsed] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
   const setStartedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
-    saveActiveWorkout({ sessionId, routineId, routineName });
-  }, [sessionId, routineId, routineName]);
+    if (!retroactive) {
+      saveActiveWorkout({ sessionId, routineId, routineName });
+    }
+  }, [sessionId, routineId, routineName, retroactive]);
 
   useEffect(() => {
+    if (retroactive) return;
     const interval = window.setInterval(() => {
       setSessionElapsed(Math.round((Date.now() - sessionStart) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, [sessionStart]);
+  }, [sessionStart, retroactive]);
 
   function formatDuration(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -44,8 +60,15 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
 
   async function handleFinish() {
     timer.stop();
-    await workout.finish();
-    clearActiveWorkout();
+    if (retroactive && retroactiveDate) {
+      // End-of-day finish so the session sits cleanly on its date.
+      const end = new Date(retroactiveDate);
+      end.setHours(23, 59, 0, 0);
+      await workout.finish(end.toISOString());
+    } else {
+      await workout.finish();
+    }
+    if (!retroactive) clearActiveWorkout();
     onFinish();
   }
 
@@ -73,24 +96,93 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
     <div>
       <div className="row-between mb-16">
         <div>
-          <h1>{routineName}</h1>
-          <span className="text-small text-muted">{formatDuration(sessionElapsed)}</span>
+          <h1>{routineName}{retroactive && <span className="text-small text-muted"> · past</span>}</h1>
+          {retroactive ? (
+            retroactiveDate && (
+              <span className="text-small text-muted">
+                {new Date(retroactiveDate).toLocaleDateString('en-AU', {
+                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                })}
+              </span>
+            )
+          ) : (
+            <span className="text-small text-muted">{formatDuration(sessionElapsed)}</span>
+          )}
         </div>
-        <button className="btn-secondary btn-small" onClick={onHome}>Home</button>
+        <div className="row" style={{ gap: 8 }}>
+          <button
+            className="btn-secondary btn-small"
+            onClick={() => setShowHistory(true)}
+            aria-label="View history"
+            title="View prior sessions"
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <Clock size={14} />
+            History
+          </button>
+          <button className="btn-secondary btn-small" onClick={onHome}>Home</button>
+        </div>
       </div>
 
-      <TimerDisplay mode={timer.mode} elapsed={timer.elapsed} />
+      {!retroactive && <TimerDisplay mode={timer.mode} elapsed={timer.elapsed} />}
 
       <ExerciseSearch onSelect={workout.addExercise} primaryMuscleGroupId={primaryMuscleGroupId} />
 
-      {workout.exercises.length > 0 && workout.activeIndex === null && (
-        <div className="stack">
-          {workout.exercises.map((entry, i) => (
-            <button key={entry.exercise.id} className="btn-secondary" onClick={() => workout.setActiveIndex(i)}>
-              {entry.exercise.name}
-              {entry.sets.length > 0 && <span className="text-muted"> ({entry.sets.length} sets)</span>}
-            </button>
-          ))}
+      {workout.activeIndex === null && (
+        <div>
+          {workout.exercises.length === 0 ? (
+            <p className="text-muted text-center mt-16">
+              Add exercises above to plan your workout.
+            </p>
+          ) : (
+            <div className="stack">
+              <h2>Plan</h2>
+              {workout.exercises.map((entry, i) => {
+                const topSet = entry.history?.sets
+                  .filter(s => s.set_type === 'working')
+                  .reduce<typeof entry.history.sets[number] | null>(
+                    (best, s) => !best || s.weight_kg > best.weight_kg ? s : best, null,
+                  );
+                const fromOther = entry.history && entry.history.session.routine_id !== routineId;
+                return (
+                  <button
+                    key={entry.exercise.id}
+                    className="btn-secondary"
+                    onClick={() => workout.setActiveIndex(i)}
+                    style={{
+                      textAlign: 'left',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      gap: 4,
+                      padding: 12,
+                    }}
+                  >
+                    <div className="row-between">
+                      <strong>{entry.exercise.name}</strong>
+                      {entry.sets.length > 0 && (
+                        <span className="text-small text-muted">
+                          {entry.sets.length} set{entry.sets.length === 1 ? '' : 's'} today
+                        </span>
+                      )}
+                    </div>
+                    {topSet ? (
+                      <span className="text-small text-muted">
+                        Last: {topSet.weight_kg}kg × {topSet.reps}
+                        {fromOther && entry.history?.session.routines && (
+                          <> · <span style={{ color: entry.history.session.routines.color }}>
+                            {entry.history.session.routines.name}
+                          </span></>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-small text-muted">No prior history</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -98,8 +190,11 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
         <SetLogger
           exercise={activeExercise.exercise}
           loggedSets={activeExercise.sets}
-          lastSessionSets={activeExercise.lastSessionSets}
+          lastSessionSets={activeExercise.history?.sets ?? []}
+          lastSession={activeExercise.history?.session ?? null}
+          currentRoutineId={routineId}
           timerMode={timer.mode}
+          retroactive={retroactive}
           onStartSet={() => {
             setStartedAtRef.current = new Date().toISOString();
             const restSeconds = timer.startSet();
@@ -108,6 +203,18 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
             }
           }}
           onLogSet={async (data) => {
+            if (retroactive) {
+              const createdAt = retroactiveDate
+                ? new Date(`${retroactiveDate.split('T')[0]}T12:00:00`).toISOString()
+                : undefined;
+              await workout.logSet(workout.activeIndex!, {
+                ...data,
+                set_duration_seconds: null,
+                started_at: null,
+                completed_at: null,
+              }, null, createdAt);
+              return;
+            }
             const completedAt = new Date().toISOString();
             const setDuration = timer.startRest();
             await workout.logSet(workout.activeIndex!, {
@@ -118,7 +225,10 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
             }, null);
             setStartedAtRef.current = null;
           }}
+          onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
+          onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}
           onRemoveExercise={() => workout.removeExercise(workout.activeIndex!)}
+          onBackToPlan={() => workout.setActiveIndex(null)}
         />
       )}
 
@@ -128,9 +238,18 @@ export default function ActiveWorkout({ sessionId, routineId, routineName, onFin
         onSelectExercise={workout.setActiveIndex}
       />
 
+      {showHistory && (
+        <SessionHistorySheet
+          routineId={routineId}
+          routineName={routineName}
+          excludeSessionId={sessionId}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
       <div className="bottom-bar">
         <button className="btn-danger" onClick={handleFinish} style={{ width: '100%', maxWidth: 480 }}>
-          Finish Workout
+          {retroactive ? 'Save Past Workout' : 'Finish Workout'}
         </button>
       </div>
     </div>

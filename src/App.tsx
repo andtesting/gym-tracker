@@ -10,6 +10,7 @@ import PickRoutineScreen from './components/PickRoutineScreen';
 import ActiveWorkout from './components/ActiveWorkout';
 import EditModeScreen from './components/EditModeScreen';
 import TrendsView from './components/TrendsView';
+import LogPastWorkoutScreen from './components/LogPastWorkoutScreen';
 
 function SetupScreen() {
   return (
@@ -93,6 +94,20 @@ export default function App() {
       )}
       {screen.name === 'trends' && (
         <TrendsView onBack={() => setScreen({ name: 'home' })} />
+      )}
+      {screen.name === 'logPastWorkout' && (
+        <LogPastWorkoutScreen onNavigate={setScreen} />
+      )}
+      {screen.name === 'retroactiveWorkout' && (
+        <ActiveWorkout
+          sessionId={screen.sessionId}
+          routineId={screen.routineId}
+          routineName={screen.routineName}
+          retroactive
+          retroactiveDate={screen.date}
+          onFinish={() => setScreen({ name: 'home' })}
+          onHome={() => setScreen({ name: 'home' })}
+        />
       )}
     </div>
   );
