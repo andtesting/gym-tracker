@@ -12,6 +12,8 @@ const rows: ExportRow[] = [
     weight_kg: 25,
     set_duration_seconds: 30,
     rest_seconds: 60,
+    started_at: '2026-04-28T08:00:00Z',
+    completed_at: '2026-04-28T08:00:30Z',
   },
   {
     date: '2026-04-28',
@@ -22,6 +24,8 @@ const rows: ExportRow[] = [
     weight_kg: 52,
     set_duration_seconds: 25,
     rest_seconds: 90,
+    started_at: '2026-04-28T08:01:30Z',
+    completed_at: '2026-04-28T08:01:55Z',
   },
   {
     date: '2026-04-28',
@@ -32,6 +36,8 @@ const rows: ExportRow[] = [
     weight_kg: 16,
     set_duration_seconds: 20,
     rest_seconds: null,
+    started_at: null,
+    completed_at: null,
   },
 ];
 
@@ -39,15 +45,15 @@ describe('toCSV', () => {
   it('produces correct header row', () => {
     const csv = toCSV(rows);
     const header = csv.split('\n')[0];
-    expect(header).toBe('date,routine,exercise,set_type,reps,weight_kg,set_duration_seconds,rest_seconds');
+    expect(header).toBe('date,routine,exercise,set_type,reps,weight_kg,set_duration_seconds,rest_seconds,started_at,completed_at');
   });
 
   it('produces correct data rows', () => {
     const csv = toCSV(rows);
     const lines = csv.split('\n');
     expect(lines).toHaveLength(4); // header + 3 rows
-    expect(lines[1]).toBe('2026-04-28,back A,Machine Lat Pulldown,warmup,10,25,30,60');
-    expect(lines[3]).toBe('2026-04-28,back A,Dumbbell Bicep Curl,working,6,16,20,');
+    expect(lines[1]).toBe('2026-04-28,back A,Machine Lat Pulldown,warmup,10,25,30,60,2026-04-28T08:00:00Z,2026-04-28T08:00:30Z');
+    expect(lines[3]).toBe('2026-04-28,back A,Dumbbell Bicep Curl,working,6,16,20,,,');
   });
 
   it('returns header only for empty data', () => {
@@ -65,6 +71,8 @@ describe('toCSV', () => {
       weight_kg: 16,
       set_duration_seconds: null,
       rest_seconds: null,
+      started_at: null,
+      completed_at: null,
     }];
     const csv = toCSV(row);
     expect(csv.split('\n')[1]).toContain('"Curl, Standing"');

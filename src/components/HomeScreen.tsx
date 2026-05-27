@@ -58,6 +58,8 @@ export default function HomeScreen({ onNavigate }: Props) {
           weight_kg: set.weight_kg,
           set_duration_seconds: set.set_duration_seconds,
           rest_seconds: set.rest_seconds,
+          started_at: set.started_at,
+          completed_at: set.completed_at,
         });
       }
     }
