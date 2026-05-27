@@ -82,10 +82,16 @@ export default function TrendsChart({ data, mode }: Props) {
               const barHeight = Math.max((primary / maxValue) * maxBarHeight, 2);
 
               // Colour the bar by change vs the previous session at this set row.
-              const prevSet = col > 0 ? setAt(col - 1, row) : undefined;
+              // Only colour when BOTH sessions have a set at this exact set_order
+              // — otherwise the positional fallback could compare mismatched sets
+              // (e.g. when a session has a gap from a deleted middle set).
+              const exactCur = data[col].sets.find(s => s.set_order === row + 1);
+              const exactPrev = col > 0
+                ? data[col - 1].sets.find(s => s.set_order === row + 1)
+                : undefined;
               let barColour = 'var(--color-accent)';
-              if (prevSet) {
-                const prev = primaryOf(prevSet);
+              if (exactCur && exactPrev) {
+                const prev = primaryOf(exactPrev);
                 if (primary > prev) barColour = 'var(--color-success)';
                 else if (primary < prev) barColour = 'var(--color-danger)';
               }
