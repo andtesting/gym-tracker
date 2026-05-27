@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ExerciseHistoryEntry } from '../types';
+import { formatRest } from '../lib/timer';
 
 interface Props {
   entry: ExerciseHistoryEntry | null;
@@ -69,14 +70,15 @@ export default function LastSessionRef({
 
       {entry && (
         <>
-          <div className="set-row set-row-header">
-            <span>#</span><span>Reps</span><span>Weight</span>
+          <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px', gap: 4 }}>
+            <span>#</span><span>Reps</span><span>Wt</span><span>Rest</span>
           </div>
           {entry.sets.map((set, i) => (
-            <div key={set.id} className="set-row ref-column">
+            <div key={set.id} className="set-row ref-column" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px', gap: 4 }}>
               <span>{i + 1}</span>
               <span>{set.reps}</span>
               <span>{set.weight_kg}kg</span>
+              <span>{i === 0 ? '' : formatRest(entry.sets[i - 1].rest_seconds)}</span>
             </div>
           ))}
         </>

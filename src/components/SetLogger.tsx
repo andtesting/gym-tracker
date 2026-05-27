@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
+import { formatRest } from '../lib/timer';
 import LastSessionRef from './LastSessionRef';
 
 interface Props {
@@ -130,16 +131,17 @@ export default function SetLogger({
             <p className="text-small text-muted">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header" style={{ gridTemplateColumns: '20px 1fr 1fr 24px' }}>
-                <span>#</span><span>Reps</span><span>Weight</span><span />
+              <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px 20px', gap: 4 }}>
+                <span>#</span><span>Reps</span><span>Wt</span><span>Rest</span><span />
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
+                const rest = i === 0 ? '' : formatRest(loggedSets[i - 1].rest_seconds);
                 return (
                   <div
                     key={set.id}
                     className="set-row"
-                    style={{ gridTemplateColumns: '20px 1fr 1fr 24px' }}
+                    style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px 20px', gap: 4 }}
                   >
                     <span>{i + 1}</span>
                     {editing ? (
@@ -174,6 +176,7 @@ export default function SetLogger({
                         </span>
                       </>
                     )}
+                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
                     <button
                       onClick={() => handleDelete(set.id)}
                       style={{

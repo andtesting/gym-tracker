@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTimer, startRest, startSet, stopTimer, getElapsed } from '../../src/lib/timer';
+import { createTimer, startRest, startSet, stopTimer, getElapsed, formatRest } from '../../src/lib/timer';
 
 describe('timer', () => {
   it('starts in idle mode with no elapsed time', () => {
@@ -55,5 +55,27 @@ describe('timer', () => {
   it('getElapsed returns 0 for idle timer', () => {
     const timer = createTimer();
     expect(getElapsed(timer, Date.now())).toBe(0);
+  });
+});
+
+describe('formatRest', () => {
+  it('returns empty string for null, undefined, or zero', () => {
+    expect(formatRest(null)).toBe('');
+    expect(formatRest(undefined)).toBe('');
+    expect(formatRest(0)).toBe('');
+    expect(formatRest(-5)).toBe('');
+  });
+
+  it('formats sub-minute rests with zero-padded seconds', () => {
+    expect(formatRest(5)).toBe('0:05');
+    expect(formatRest(45)).toBe('0:45');
+  });
+
+  it('formats minute-plus rests as m:ss', () => {
+    expect(formatRest(60)).toBe('1:00');
+    expect(formatRest(84)).toBe('1:24');
+    expect(formatRest(90)).toBe('1:30');
+    expect(formatRest(125)).toBe('2:05');
+    expect(formatRest(605)).toBe('10:05');
   });
 });

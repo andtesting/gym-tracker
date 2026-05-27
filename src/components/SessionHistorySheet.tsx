@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { fetchRecentRoutineSessions } from '../api/sessions';
 import type { RoutineSessionHistory, SetWithExercise } from '../types';
+import { formatRest } from '../lib/timer';
 
 interface Props {
   routineId: string;
@@ -146,14 +147,15 @@ export default function SessionHistorySheet({
                   {groups.map((g, gi) => (
                     <div key={gi} className="mt-8">
                       <div className="text-small" style={{ fontWeight: 600 }}>{g.name}</div>
-                      <div className="set-row set-row-header mt-8">
-                        <span>#</span><span>Reps</span><span>Weight</span>
+                      <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
+                        <span>#</span><span>Reps</span><span>Weight</span><span>Rest</span>
                       </div>
                       {g.sets.map((s, si) => (
-                        <div key={s.id} className="set-row">
+                        <div key={s.id} className="set-row" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
                           <span>{si + 1}</span>
                           <span>{s.reps}</span>
                           <span>{s.weight_kg} kg</span>
+                          <span className="text-muted">{si === 0 ? '' : formatRest(g.sets[si - 1].rest_seconds)}</span>
                         </div>
                       ))}
                     </div>

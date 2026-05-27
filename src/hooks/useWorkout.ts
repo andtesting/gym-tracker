@@ -122,6 +122,16 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     });
   }, [sessionId]);
 
+  // Persist the rest taken after `setId` and reflect it in local state so the
+  // live display updates immediately (updateSetRest alone is server-only).
+  const recordRest = useCallback((setId: string, seconds: number) => {
+    setExercises(prev => prev.map(e => ({
+      ...e,
+      sets: e.sets.map(s => s.id === setId ? { ...s, rest_seconds: seconds } : s),
+    })));
+    updateSetRest(setId, seconds).catch((e) => console.error('Failed to save rest:', e));
+  }, []);
+
   const reorderExercise = useCallback((index: number, direction: 'up' | 'down') => {
     setExercises(prev => {
       const target = direction === 'up' ? index - 1 : index + 1;
@@ -210,6 +220,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     addExercise,
     removeExercise,
     reorderExercise,
+    recordRest,
     logSet,
     editSet,
     deleteSet,

@@ -1,4 +1,5 @@
 import type { WorkoutSet, Exercise } from '../types';
+import { formatRest } from '../lib/timer';
 
 interface ExerciseEntry {
   exercise: Exercise;
@@ -30,14 +31,15 @@ export default function RunningLog({ exercises, activeIndex, onSelectExercise }:
           >
             <strong>{entry.exercise.name}</strong>
             <span className="text-small text-muted"> ({entry.sets.length} sets)</span>
-            <div className="set-row set-row-header mt-8">
-              <span>#</span><span>Reps</span><span>Weight</span>
+            <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
+              <span>#</span><span>Reps</span><span>Weight</span><span>Rest</span>
             </div>
             {entry.sets.map((set, j) => (
-              <div key={set.id} className="set-row">
+              <div key={set.id} className="set-row" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
                 <span>{j + 1}</span>
                 <span>{set.reps}</span>
                 <span>{set.weight_kg} kg</span>
+                <span className="text-muted">{j === 0 ? '' : formatRest(entry.sets[j - 1].rest_seconds)}</span>
               </div>
             ))}
           </div>
