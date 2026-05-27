@@ -156,7 +156,6 @@ export default function ActiveWorkout({
               <h2>Plan</h2>
               {workout.exercises.map((entry, i) => {
                 const topSet = entry.history?.sets
-                  .filter(s => s.set_type === 'working')
                   .reduce<typeof entry.history.sets[number] | null>(
                     (best, s) => !best || s.weight_kg > best.weight_kg ? s : best, null,
                   );

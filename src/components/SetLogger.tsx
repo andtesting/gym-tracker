@@ -12,7 +12,7 @@ interface Props {
   timerMode: 'idle' | 'rest' | 'set';
   retroactive?: boolean;
   onStartSet: () => void;
-  onLogSet: (data: { reps: number; weight_kg: number; set_type: 'warmup' | 'working' }) => Promise<void>;
+  onLogSet: (data: { reps: number; weight_kg: number }) => Promise<void>;
   onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number }) => Promise<void>;
   onDeleteSet: (setId: string) => Promise<void>;
   onRemoveExercise: () => void;
@@ -36,7 +36,6 @@ export default function SetLogger({
 }: Props) {
   const [reps, setReps] = useState('');
   const [weight, setWeight] = useState('');
-  const [setType, setSetType] = useState<'warmup' | 'working'>('working');
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');
@@ -51,7 +50,7 @@ export default function SetLogger({
     setSubmitting(true);
     setError(null);
     try {
-      await onLogSet({ reps: r, weight_kg: w, set_type: setType });
+      await onLogSet({ reps: r, weight_kg: w });
       setReps('');
       setWeight('');
     } catch (e) {
@@ -124,8 +123,8 @@ export default function SetLogger({
             <p className="text-small text-muted mt-8">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '24px 1fr 1fr 1fr 28px' }}>
-                <span>#</span><span>Type</span><span>Reps</span><span>Weight</span><span />
+              <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '24px 1fr 1fr 28px' }}>
+                <span>#</span><span>Reps</span><span>Weight</span><span />
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
@@ -133,10 +132,9 @@ export default function SetLogger({
                   <div
                     key={set.id}
                     className="set-row"
-                    style={{ gridTemplateColumns: '24px 1fr 1fr 1fr 28px' }}
+                    style={{ gridTemplateColumns: '24px 1fr 1fr 28px' }}
                   >
                     <span>{i + 1}</span>
-                    <span>{set.set_type}</span>
                     {editing ? (
                       <>
                         <input
@@ -213,21 +211,6 @@ export default function SetLogger({
             {submitting ? 'Saving…' : retroactive ? 'Add Set' : 'Log Set'}
           </button>
         )}
-
-        <div className="toggle-group mb-16">
-          <button
-            className={setType === 'warmup' ? 'active' : ''}
-            onClick={() => setSetType('warmup')}
-          >
-            Warmup
-          </button>
-          <button
-            className={setType === 'working' ? 'active' : ''}
-            onClick={() => setSetType('working')}
-          >
-            Working
-          </button>
-        </div>
 
         <div className="row">
           <input

@@ -134,7 +134,6 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     data: {
       reps: number;
       weight_kg: number;
-      set_type: 'warmup' | 'working';
       set_duration_seconds: number | null;
       started_at: string | null;
       completed_at: string | null;
@@ -151,7 +150,6 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       session_id: sessionId,
       exercise_id: exercise.exercise.id,
       set_order: setOrder,
-      set_type: data.set_type,
       reps: data.reps,
       weight_kg: data.weight_kg,
       set_duration_seconds: data.set_duration_seconds,

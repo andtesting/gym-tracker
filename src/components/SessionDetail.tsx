@@ -26,7 +26,6 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [pendingExercise, setPendingExercise] = useState<Exercise | null>(null);
   const [pendingReps, setPendingReps] = useState('10');
   const [pendingWeight, setPendingWeight] = useState('');
-  const [pendingType, setPendingType] = useState<'warmup' | 'working'>('working');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -156,7 +155,6 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         session_id: sessionId,
         exercise_id: pendingExercise.id,
         set_order: maxOrder + 1,
-        set_type: pendingType,
         reps,
         weight_kg: weight,
         set_duration_seconds: null,
@@ -166,7 +164,6 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       });
       const refreshed = await fetchSessionSets(sessionId);
       setSets(refreshed);
-      setPendingType('working');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add set.');
     } finally {
@@ -228,14 +225,13 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
               </div>
             )}
           </div>
-          <div className="set-row set-row-header mt-8">
-            <span>Set</span><span>Type</span><span>Reps</span><span>Weight</span>
+          <div className="set-row set-row-header mt-8" style={editing ? { gridTemplateColumns: '50px 1fr 1fr 40px' } : undefined}>
+            <span>Set</span><span>Reps</span><span>Weight</span>
             {editing && <span />}
           </div>
           {group.sets.map((set, j) => (
-            <div key={set.id} className="set-row" style={editing ? { gridTemplateColumns: '50px 1fr 1fr 1fr 40px' } : undefined}>
+            <div key={set.id} className="set-row" style={editing ? { gridTemplateColumns: '50px 1fr 1fr 40px' } : undefined}>
               <span>{j + 1}</span>
-              <span>{set.set_type}</span>
               {editing ? (
                 <>
                   <input
@@ -292,18 +288,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                   Change
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <div>
-                  <label className="text-small text-muted">Type</label>
-                  <select
-                    value={pendingType}
-                    onChange={e => setPendingType(e.target.value as 'warmup' | 'working')}
-                    style={{ width: '100%', minHeight: 36, fontSize: '0.875rem' }}
-                  >
-                    <option value="working">Working</option>
-                    <option value="warmup">Warmup</option>
-                  </select>
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
                   <label className="text-small text-muted">Reps</label>
                   <input
