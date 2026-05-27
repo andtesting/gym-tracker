@@ -24,3 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 .playwright-mcp/
+
+# Local data backups (personal workout history — never commit)
+backups/
