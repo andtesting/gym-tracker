@@ -7,9 +7,11 @@ export interface ExportRow {
   weight_kg: number;
   set_duration_seconds: number | null;
   rest_seconds: number | null;
+  started_at: string | null;
+  completed_at: string | null;
 }
 
-const CSV_HEADERS = ['date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg', 'set_duration_seconds', 'rest_seconds'] as const;
+const CSV_HEADERS = ['date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg', 'set_duration_seconds', 'rest_seconds', 'started_at', 'completed_at'] as const;
 
 function escapeCSV(value: string | number | null): string {
   if (value === null) return '';
@@ -39,6 +41,8 @@ interface ExportSession {
       weight_kg: number;
       set_duration_seconds: number | null;
       rest_seconds: number | null;
+      started_at: string | null;
+      completed_at: string | null;
     }[];
   }[];
 }
@@ -63,6 +67,8 @@ export function toJSON(rows: ExportRow[]): string {
       weight_kg: row.weight_kg,
       set_duration_seconds: row.set_duration_seconds,
       rest_seconds: row.rest_seconds,
+      started_at: row.started_at,
+      completed_at: row.completed_at,
     });
   }
 

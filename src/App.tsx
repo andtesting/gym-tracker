@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from './supabase';
 import { useAuth } from './hooks/useAuth';
 import { loadActiveWorkout, clearActiveWorkout, validatePersistedSession } from './lib/sessionPersistence';
 import LoginScreen from './components/LoginScreen';
+import ResetPasswordScreen from './components/ResetPasswordScreen';
 import HomeScreen from './components/HomeScreen';
 import SessionDetail from './components/SessionDetail';
 import PickRoutineScreen from './components/PickRoutineScreen';
@@ -37,7 +38,7 @@ const loadingScreen = <div className="app text-center text-muted mt-16">Loading.
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [resumeChecked, setResumeChecked] = useState(false);
-  const { session, loading } = useAuth();
+  const { session, loading, recovery, clearRecovery } = useAuth();
 
   useEffect(() => {
     if (loading || !session || resumeChecked) return;
@@ -63,6 +64,9 @@ export default function App() {
 
   if (!isSupabaseConfigured) return <SetupScreen />;
   if (loading) return loadingScreen;
+  // A recovery-link session must set a new password before reaching the app,
+  // so the link can't be used as a silent passwordless login.
+  if (session && recovery) return <ResetPasswordScreen onComplete={clearRecovery} />;
   if (!session) return <LoginScreen />;
   if (!resumeChecked) return loadingScreen;
 

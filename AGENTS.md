@@ -35,17 +35,17 @@ docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirem
 ## Data model (Supabase)
 
 ```
-muscle_groups (id, name, sort_order)
-routines      (id, name, color)                  # "back A", "chest A", etc.
-exercises     (id, name, muscle_group_id)        # built organically as user creates them
-sessions      (id, routine_id, started_at, finished_at, notes)
-sets          (id, session_id, exercise_id, set_order, set_type, reps, weight_kg,
+muscle_groups (id, user_id, name, sort_order)
+routines      (id, user_id, name, color)                  # "back A", "chest A", etc.
+exercises     (id, user_id, name, muscle_group_id)        # built organically as user creates them
+sessions      (id, user_id, routine_id, started_at, finished_at, notes)
+sets          (id, user_id, session_id, exercise_id, set_order, set_type, reps, weight_kg,
                set_duration_seconds, rest_seconds, started_at, completed_at, created_at)
 ```
 
-- `set_type` is `'warmup' | 'working'`.
-- RLS: every table has policy `authenticated access` allowing any authenticated user full CRUD. This is a single-user app; users do not see each other's data because there is only ever one user account per Supabase project.
-- `started_at`/`completed_at` on sets capture wall-clock for future heart-rate-monitor integration (AND-16).
+- `set_type` is `'warmup' | 'working'`. The warmup/working UI was removed (AND-29); new sets always default to `'working'`. The column is retained for historical data and export.
+- **RLS is per-user (AND-35).** Every table has a `user_id uuid not null default auth.uid()` column and an owner-only policy (`user_id = auth.uid()`). App inserts don't set `user_id` — the column default fills it from the authenticated caller, and RLS auto-scopes all reads. `unique` constraints on names are per-user (`unique(user_id, name)`). New users start with an empty library and build it via the app. Public sign-ups are disabled in the Supabase dashboard. Live DB migrated via `sql/migrations/2026-05-27-per-user-rls.sql`.
+- `started_at`/`completed_at` on sets capture wall-clock UTC (AND-16); included in the CSV/JSON export (AND-36) for health-tracker sync.
 - Retroactive set adds backdate `created_at` to the session's first set's `created_at` so grouping stays correct (see `SessionDetail.handleAddRetroactiveSet`).
 
 ## App architecture
