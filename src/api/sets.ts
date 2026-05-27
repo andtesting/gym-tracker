@@ -5,7 +5,10 @@ export interface CreateSetInput {
   session_id: string;
   exercise_id: string;
   set_order: number;
-  set_type: 'warmup' | 'working';
+  // The warmup/working distinction was removed from the UI; every new set is
+  // 'working'. The DB column is retained (and still holds historical labels)
+  // so old data is preserved and the feature is reversible.
+  set_type?: 'warmup' | 'working';
   reps: number;
   weight_kg: number;
   set_duration_seconds: number | null;
@@ -17,7 +20,7 @@ export interface CreateSetInput {
 export async function createSet(input: CreateSetInput): Promise<WorkoutSet> {
   const { data, error } = await supabase
     .from('sets')
-    .insert(input)
+    .insert({ set_type: 'working', ...input })
     .select()
     .single();
   if (error) throw error;

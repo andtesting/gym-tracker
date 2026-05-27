@@ -31,12 +31,11 @@ export default function RunningLog({ exercises, activeIndex, onSelectExercise }:
             <strong>{entry.exercise.name}</strong>
             <span className="text-small text-muted"> ({entry.sets.length} sets)</span>
             <div className="set-row set-row-header mt-8">
-              <span>#</span><span>Type</span><span>Reps</span><span>Weight</span>
+              <span>#</span><span>Reps</span><span>Weight</span>
             </div>
             {entry.sets.map((set, j) => (
               <div key={set.id} className="set-row">
                 <span>{j + 1}</span>
-                <span>{set.set_type}</span>
                 <span>{set.reps}</span>
                 <span>{set.weight_kg} kg</span>
               </div>

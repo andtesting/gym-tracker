@@ -147,12 +147,11 @@ export default function SessionHistorySheet({
                     <div key={gi} className="mt-8">
                       <div className="text-small" style={{ fontWeight: 600 }}>{g.name}</div>
                       <div className="set-row set-row-header mt-8">
-                        <span>#</span><span>Type</span><span>Reps</span><span>Weight</span>
+                        <span>#</span><span>Reps</span><span>Weight</span>
                       </div>
                       {g.sets.map((s, si) => (
                         <div key={s.id} className="set-row">
                           <span>{si + 1}</span>
-                          <span>{s.set_type}</span>
                           <span>{s.reps}</span>
                           <span>{s.weight_kg} kg</span>
                         </div>
