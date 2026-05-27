@@ -164,6 +164,37 @@ input:focus, select:focus {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Shared header band so the Last Time and Current columns line up vertically */
+.set-col-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 4px;
+}
+.set-col-meta {
+  min-height: 20px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+}
+.pager-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  min-height: 0;
+  line-height: 0;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+.pager-btn:disabled {
+  color: var(--color-border);
+  cursor: default;
+}
+
 .toggle-group {
   display: flex;
   border: 1px solid var(--color-border);

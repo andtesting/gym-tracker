@@ -1,52 +1,86 @@
-import type { WorkoutSet, SessionWithRoutine } from '../types';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { ExerciseHistoryEntry } from '../types';
 
 interface Props {
-  sets: WorkoutSet[];
-  session: SessionWithRoutine | null;
+  entry: ExerciseHistoryEntry | null;
   currentRoutineId: string;
+  index: number;
+  total: number;
+  onOlder: () => void;
+  onNewer: () => void;
 }
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
-export default function LastSessionRef({ sets, session, currentRoutineId }: Props) {
-  if (sets.length === 0 || !session) {
-    return (
-      <div>
-        <div className="two-column-label">Last Time</div>
-        <p className="text-small text-muted mt-8">No prior history</p>
-      </div>
-    );
-  }
-
-  const fromOtherRoutine = session.routine_id !== currentRoutineId;
-  const routineName = session.routines?.name ?? 'Unnamed';
+export default function LastSessionRef({
+  entry, currentRoutineId, index, total, onOlder, onNewer,
+}: Props) {
+  const fromOtherRoutine = entry ? entry.session.routine_id !== currentRoutineId : false;
+  const routineName = entry?.session.routines?.name ?? 'Unnamed';
 
   return (
     <div>
-      <div className="two-column-label">Last Time</div>
-      <div className="text-small text-muted mt-8" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        <span>{formatDate(session.started_at)}</span>
-        {fromOtherRoutine && (
-          <>
-            <span>·</span>
-            <span style={{ color: session.routines?.color ?? 'var(--color-muted)' }}>
-              {routineName}
+      <div className="set-col-title">
+        <span className="two-column-label" style={{ border: 'none', padding: 0 }}>Last Time</span>
+        {total > 1 && (
+          <span className="row" style={{ gap: 2 }}>
+            <button
+              className="pager-btn"
+              onClick={onNewer}
+              disabled={index === 0}
+              aria-label="Newer session"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-small text-muted" style={{ minWidth: 28, textAlign: 'center' }}>
+              {index + 1}/{total}
             </span>
-          </>
+            <button
+              className="pager-btn"
+              onClick={onOlder}
+              disabled={index >= total - 1}
+              aria-label="Older session"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </span>
         )}
       </div>
-      <div className="set-row set-row-header mt-8">
-        <span>#</span><span>Reps</span><span>Weight</span>
+
+      <div className="set-col-meta">
+        {entry ? (
+          <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            <span>{formatDate(entry.session.started_at)}</span>
+            {fromOtherRoutine && (
+              <>
+                <span>·</span>
+                <span style={{ color: entry.session.routines?.color ?? 'var(--color-muted)' }}>
+                  {routineName}
+                </span>
+              </>
+            )}
+          </span>
+        ) : (
+          <span>No prior history</span>
+        )}
       </div>
-      {sets.map((set, i) => (
-        <div key={set.id} className="set-row ref-column">
-          <span>{i + 1}</span>
-          <span>{set.reps}</span>
-          <span>{set.weight_kg} kg</span>
-        </div>
-      ))}
+
+      {entry && (
+        <>
+          <div className="set-row set-row-header">
+            <span>#</span><span>Reps</span><span>Weight</span>
+          </div>
+          {entry.sets.map((set, i) => (
+            <div key={set.id} className="set-row ref-column">
+              <span>{i + 1}</span>
+              <span>{set.reps}</span>
+              <span>{set.weight_kg}kg</span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

@@ -91,16 +91,18 @@ export async function fetchHeatmapSessions(startDate: string, endDate: string): 
   return data as unknown as HeatmapSession[];
 }
 
-// Returns the most recent finished session for each exercise across ALL routines,
-// keyed by exercise_id. Used during an active workout so the user can see prior
-// performance for an exercise even when it was last done under a different routine.
+// Returns up to `maxSessions` most recent finished sessions for each exercise
+// across ALL routines, keyed by exercise_id, newest first. Used during an active
+// workout so the user can page through prior performances of an exercise even
+// when it was last done under a different routine.
 //
 // Note: PostgREST's `referencedTable` ordering only sorts nested arrays, not
-// outer rows. To pick the "most recent" session per exercise we must sort
-// client-side after pulling all rows.
-export async function fetchLastSetsForExercises(
+// outer rows. To order by session date we must sort client-side after pulling
+// all rows.
+export async function fetchExerciseHistories(
   exerciseIds: string[],
-): Promise<Map<string, ExerciseHistoryEntry>> {
+  maxSessions = 10,
+): Promise<Map<string, ExerciseHistoryEntry[]>> {
   if (exerciseIds.length === 0) return new Map();
 
   const { data, error } = await supabase
@@ -113,8 +115,8 @@ export async function fetchLastSetsForExercises(
   type Row = WorkoutSet & { sessions: SessionWithRoutine };
   const rows = data as unknown as Row[];
 
-  // Sort by session.started_at DESC, tie-break by session.id (stable) so the
-  // "first session seen per exercise" is deterministically the most recent.
+  // Sort by session.started_at DESC, tie-break by session.id (stable), then
+  // set_order ASC so each session's sets come out in order.
   rows.sort((a, b) => {
     const cmp = b.sessions.started_at.localeCompare(a.sessions.started_at);
     if (cmp !== 0) return cmp;
@@ -123,37 +125,37 @@ export async function fetchLastSetsForExercises(
     return a.set_order - b.set_order;
   });
 
-  const winningSession = new Map<string, string>();
-  const result = new Map<string, ExerciseHistoryEntry>();
+  const result = new Map<string, ExerciseHistoryEntry[]>();
+  // Track, per exercise, the session_id of the entry we're currently appending
+  // to so consecutive rows of the same session accumulate into one entry.
+  const lastSessionForExercise = new Map<string, string>();
 
   for (const row of rows) {
     if (!row.exercise_id) continue;
-    if (!winningSession.has(row.exercise_id)) {
-      winningSession.set(row.exercise_id, row.session_id);
-      result.set(row.exercise_id, { session: row.sessions, sets: [] });
-    }
-    if (winningSession.get(row.exercise_id) === row.session_id) {
-      const rest: WorkoutSet = {
-        id: row.id,
-        session_id: row.session_id,
-        exercise_id: row.exercise_id,
-        set_order: row.set_order,
-        set_type: row.set_type,
-        reps: row.reps,
-        weight_kg: row.weight_kg,
-        set_duration_seconds: row.set_duration_seconds,
-        rest_seconds: row.rest_seconds,
-        started_at: row.started_at,
-        completed_at: row.completed_at,
-        created_at: row.created_at,
-      };
-      result.get(row.exercise_id)!.sets.push(rest);
-    }
-  }
+    const list = result.get(row.exercise_id) ?? [];
+    if (!result.has(row.exercise_id)) result.set(row.exercise_id, list);
 
-  // Ensure each entry's sets are in set_order ascending order for display.
-  for (const entry of result.values()) {
-    entry.sets.sort((a, b) => a.set_order - b.set_order);
+    const isNewSession = lastSessionForExercise.get(row.exercise_id) !== row.session_id;
+    if (isNewSession) {
+      if (list.length >= maxSessions) continue;
+      list.push({ session: row.sessions, sets: [] });
+      lastSessionForExercise.set(row.exercise_id, row.session_id);
+    }
+    const set: WorkoutSet = {
+      id: row.id,
+      session_id: row.session_id,
+      exercise_id: row.exercise_id,
+      set_order: row.set_order,
+      set_type: row.set_type,
+      reps: row.reps,
+      weight_kg: row.weight_kg,
+      set_duration_seconds: row.set_duration_seconds,
+      rest_seconds: row.rest_seconds,
+      started_at: row.started_at,
+      completed_at: row.completed_at,
+      created_at: row.created_at,
+    };
+    list[list.length - 1].sets.push(set);
   }
 
   return result;

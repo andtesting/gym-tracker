@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import type { Exercise, WorkoutSet, SessionWithRoutine } from '../types';
+import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import LastSessionRef from './LastSessionRef';
 
 interface Props {
   exercise: Exercise;
   loggedSets: WorkoutSet[];
-  lastSessionSets: WorkoutSet[];
-  lastSession: SessionWithRoutine | null;
+  histories: ExerciseHistoryEntry[];
   currentRoutineId: string;
   timerMode: 'idle' | 'rest' | 'set';
   retroactive?: boolean;
@@ -22,8 +21,7 @@ interface Props {
 export default function SetLogger({
   exercise,
   loggedSets,
-  lastSessionSets,
-  lastSession,
+  histories,
   currentRoutineId,
   timerMode,
   retroactive = false,
@@ -41,6 +39,9 @@ export default function SetLogger({
   const [editWeight, setEditWeight] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [histIndex, setHistIndex] = useState(0);
+
+  const selectedHistory = histories[histIndex] ?? null;
 
   async function handleLog() {
     if (submitting) return;
@@ -112,18 +113,24 @@ export default function SetLogger({
       <div className="two-column mt-8">
         <div>
           <LastSessionRef
-            sets={lastSessionSets}
-            session={lastSession}
+            entry={selectedHistory}
             currentRoutineId={currentRoutineId}
+            index={histIndex}
+            total={histories.length}
+            onOlder={() => setHistIndex(i => Math.min(i + 1, histories.length - 1))}
+            onNewer={() => setHistIndex(i => Math.max(i - 1, 0))}
           />
         </div>
         <div>
-          <div className="two-column-label">Current Session</div>
+          <div className="set-col-title">
+            <span className="two-column-label" style={{ border: 'none', padding: 0 }}>Current</span>
+          </div>
+          <div className="set-col-meta">Today</div>
           {loggedSets.length === 0 ? (
-            <p className="text-small text-muted mt-8">No sets yet</p>
+            <p className="text-small text-muted">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '24px 1fr 1fr 28px' }}>
+              <div className="set-row set-row-header" style={{ gridTemplateColumns: '20px 1fr 1fr 24px' }}>
                 <span>#</span><span>Reps</span><span>Weight</span><span />
               </div>
               {loggedSets.map((set, i) => {
@@ -132,7 +139,7 @@ export default function SetLogger({
                   <div
                     key={set.id}
                     className="set-row"
-                    style={{ gridTemplateColumns: '24px 1fr 1fr 28px' }}
+                    style={{ gridTemplateColumns: '20px 1fr 1fr 24px' }}
                   >
                     <span>{i + 1}</span>
                     {editing ? (
@@ -163,7 +170,7 @@ export default function SetLogger({
                           {set.reps}
                         </span>
                         <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
-                          {set.weight_kg} kg
+                          {set.weight_kg}kg
                         </span>
                       </>
                     )}
