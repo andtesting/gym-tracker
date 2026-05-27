@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { updatePassword } from '../hooks/useAuth';
+import { updatePassword, signOut } from '../hooks/useAuth';
 
 interface Props {
   onComplete: () => void;
@@ -72,6 +72,14 @@ export default function ResetPasswordScreen({ onComplete }: Props) {
         )}
         <button type="submit" className="btn-primary" disabled={busy}>
           {busy ? '...' : 'Set Password'}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => signOut()}
+          disabled={busy}
+        >
+          Cancel and sign out
         </button>
       </form>
     </div>

@@ -59,6 +59,25 @@ alter table sets          alter column user_id set not null;
 alter table sets alter column set_type set default 'working';
 
 -- 5. Replace global unique(name) with per-user unique(user_id, name).
+-- Guard: the original schema used inline `name text unique not null`, which
+-- Postgres names `<table>_name_key`. If a constraint was ever renamed/recreated
+-- the drop below would silently no-op and leave the OLD global-unique in place
+-- (which would later block a second user from reusing a name). Abort if the
+-- expected constraints aren't found exactly.
+do $$
+declare missing text;
+begin
+  select string_agg(t, ', ') into missing
+  from (values ('muscle_groups_name_key'), ('routines_name_key'), ('exercises_name_key')) as v(t)
+  where not exists (
+    select 1 from pg_constraint
+    where conname = v.t and contype = 'u'
+  );
+  if missing is not null then
+    raise exception 'Expected unique constraints not found: %. Inspect pg_constraint and adjust the drops before running.', missing;
+  end if;
+end $$;
+
 alter table muscle_groups drop constraint if exists muscle_groups_name_key;
 alter table routines      drop constraint if exists routines_name_key;
 alter table exercises     drop constraint if exists exercises_name_key;

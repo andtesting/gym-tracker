@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../supabase';
 
+// Recovery intent is persisted so it survives a page reload. The Supabase
+// recovery session itself is persisted in localStorage, so without a durable
+// flag a reload would re-read that session, miss the one-shot PASSWORD_RECOVERY
+// event, and drop the user straight into the app without setting a password.
+const RECOVERY_KEY = 'gym-tracker-password-recovery';
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,19 +23,32 @@ export function useAuth() {
     }
 
     supabase.auth.getSession().then(({ data }) => {
+      // Re-derive recovery on load: a persisted recovery session + the durable
+      // flag means the user still hasn't set a new password.
+      if (data.session && localStorage.getItem(RECOVERY_KEY)) setRecovery(true);
       setSession(data.session);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      if (event === 'PASSWORD_RECOVERY') {
+        localStorage.setItem(RECOVERY_KEY, '1');
+        setRecovery(true);
+      } else if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        // A normal sign-in or sign-out is not a recovery; clear the flag.
+        localStorage.removeItem(RECOVERY_KEY);
+        setRecovery(false);
+      }
       setSession(session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const clearRecovery = useCallback(() => setRecovery(false), []);
+  const clearRecovery = useCallback(() => {
+    localStorage.removeItem(RECOVERY_KEY);
+    setRecovery(false);
+  }, []);
 
   return { session, loading, recovery, clearRecovery };
 }
