@@ -16,6 +16,8 @@ interface Props {
   mode: 'weight' | 'reps';
 }
 
+const COL_WIDTH = 46;
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
@@ -33,14 +35,20 @@ export default function TrendsChart({ data, mode }: Props) {
   const maxValue = Math.max(...allValues, 1);
   const maxBarHeight = 60;
 
+  // Resolve a set at a given row for a given session column.
+  const setAt = (col: number, row: number): SetData | undefined =>
+    data[col].sets.find(s => s.set_order === row + 1) ?? data[col].sets[row];
+
+  const primaryOf = (s: SetData) => (mode === 'weight' ? s.weight_kg : s.reps);
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `auto repeat(${data.length}, 1fr)`,
-          gap: 4,
-          minWidth: data.length * 50,
+          gridTemplateColumns: `28px repeat(${data.length}, ${COL_WIDTH}px)`,
+          gap: 6,
+          width: 'max-content',
         }}
       >
         <div />
@@ -64,14 +72,29 @@ export default function TrendsChart({ data, mode }: Props) {
             >
               S{row + 1}
             </div>
-            {data.map((dp, col) => {
-              const set = dp.sets.find(s => s.set_order === row + 1) ?? dp.sets[row];
+            {data.map((_dp, col) => {
+              const set = setAt(col, row);
               if (!set) {
                 return <div key={`${row}-${col}`} style={{ height: maxBarHeight + 34 }} />;
               }
-              const primary = mode === 'weight' ? set.weight_kg : set.reps;
+              const primary = primaryOf(set);
               const secondary = mode === 'weight' ? set.reps : set.weight_kg;
               const barHeight = Math.max((primary / maxValue) * maxBarHeight, 2);
+
+              // Colour the bar by change vs the previous session at this set row.
+              // Only colour when BOTH sessions have a set at this exact set_order
+              // — otherwise the positional fallback could compare mismatched sets
+              // (e.g. when a session has a gap from a deleted middle set).
+              const exactCur = data[col].sets.find(s => s.set_order === row + 1);
+              const exactPrev = col > 0
+                ? data[col - 1].sets.find(s => s.set_order === row + 1)
+                : undefined;
+              let barColour = 'var(--color-accent)';
+              if (exactCur && exactPrev) {
+                const prev = primaryOf(exactPrev);
+                if (primary > prev) barColour = 'var(--color-success)';
+                else if (primary < prev) barColour = 'var(--color-danger)';
+              }
 
               return (
                 <div
@@ -90,7 +113,7 @@ export default function TrendsChart({ data, mode }: Props) {
                   </div>
                   <div
                     className="trends-bar"
-                    style={{ height: barHeight }}
+                    style={{ height: barHeight, background: barColour, width: '100%' }}
                   />
                   <div className="trends-value">
                     {secondary > 0 ? `${secondary}${mode === 'weight' ? 'r' : 'kg'}` : ''}

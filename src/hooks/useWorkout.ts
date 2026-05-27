@@ -3,7 +3,7 @@ import {
   fetchLastSession,
   fetchSessionSets,
   finishSession,
-  fetchLastSetsForExercises,
+  fetchExerciseHistories,
 } from '../api/sessions';
 import { createSet, updateSet as apiUpdateSet, deleteSet as apiDeleteSet, updateSetRest } from '../api/sets';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
@@ -12,8 +12,9 @@ import type { CreateSetInput } from '../api/sets';
 export interface ActiveExercise {
   exercise: Exercise;
   sets: WorkoutSet[];
-  // Cross-routine: most recent prior performance of this exercise across ALL routines.
-  history: ExerciseHistoryEntry | null;
+  // Cross-routine prior performances of this exercise across ALL routines,
+  // newest first. Index 0 is the most recent; the SetLogger pages through them.
+  histories: ExerciseHistoryEntry[];
 }
 
 interface UseWorkoutOptions {
@@ -47,7 +48,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
             exerciseMap.set(set.exercise_id, {
               exercise: set.exercises,
               sets: [],
-              history: null,
+              histories: [],
             });
             exerciseOrder.push(set.exercise_id);
           }
@@ -61,25 +62,22 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
               exerciseMap.set(set.exercise_id, {
                 exercise: set.exercises,
                 sets: [],
-                history: null,
+                histories: [],
               });
               exerciseOrder.push(set.exercise_id);
             }
           }
         }
 
-        // Cross-routine history (AND-25): for every exercise on the plan,
-        // fetch the most recent prior performance regardless of routine.
-        const historyByExercise = await fetchLastSetsForExercises(exerciseOrder).catch((e) => {
+        // Cross-routine history (AND-25/31): prior performances of each exercise
+        // regardless of routine, newest first, excluding the current session.
+        const historyByExercise = await fetchExerciseHistories(exerciseOrder).catch((e) => {
           console.error('Failed to fetch cross-routine history:', e);
-          return new Map<string, ExerciseHistoryEntry>();
+          return new Map<string, ExerciseHistoryEntry[]>();
         });
-        // Drop "history" entries that point at the current session itself.
         for (const exId of exerciseOrder) {
-          const entry = historyByExercise.get(exId);
-          if (entry && entry.session.id !== sessionId) {
-            exerciseMap.get(exId)!.history = entry;
-          }
+          const entries = (historyByExercise.get(exId) ?? []).filter(e => e.session.id !== sessionId);
+          exerciseMap.get(exId)!.histories = entries;
         }
 
         const result = exerciseOrder.map(id => exerciseMap.get(id)!);
@@ -108,14 +106,14 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
         setActiveIndex(existing);
         return prev;
       }
-      const next = [...prev, { exercise, sets: [], history: null }];
+      const next = [...prev, { exercise, sets: [], histories: [] }];
       // Lazy-load history for the newly added exercise.
-      fetchLastSetsForExercises([exercise.id])
+      fetchExerciseHistories([exercise.id])
         .then(map => {
-          const entry = map.get(exercise.id);
-          if (!entry || entry.session.id === sessionId) return;
+          const entries = (map.get(exercise.id) ?? []).filter(e => e.session.id !== sessionId);
+          if (entries.length === 0) return;
           setExercises(curr => curr.map(e =>
-            e.exercise.id === exercise.id ? { ...e, history: entry } : e,
+            e.exercise.id === exercise.id ? { ...e, histories: entries } : e,
           ));
         })
         .catch(() => {});
@@ -123,6 +121,16 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       return next;
     });
   }, [sessionId]);
+
+  const reorderExercise = useCallback((index: number, direction: 'up' | 'down') => {
+    setExercises(prev => {
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
 
   const removeExercise = useCallback((index: number) => {
     setExercises(prev => prev.filter((_, i) => i !== index));
@@ -201,6 +209,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     setActiveIndex,
     addExercise,
     removeExercise,
+    reorderExercise,
     logSet,
     editSet,
     deleteSet,

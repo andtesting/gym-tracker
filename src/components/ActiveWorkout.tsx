@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { updateSetRest } from '../api/sets';
@@ -155,46 +155,75 @@ export default function ActiveWorkout({
             <div className="stack">
               <h2>Plan</h2>
               {workout.exercises.map((entry, i) => {
-                const topSet = entry.history?.sets
-                  .reduce<typeof entry.history.sets[number] | null>(
+                const recent = entry.histories[0] ?? null;
+                const topSet = recent?.sets
+                  .reduce<typeof recent.sets[number] | null>(
                     (best, s) => !best || s.weight_kg > best.weight_kg ? s : best, null,
                   );
-                const fromOther = entry.history && entry.history.session.routine_id !== routineId;
+                const fromOther = recent && recent.session.routine_id !== routineId;
                 return (
-                  <button
+                  <div
                     key={entry.exercise.id}
-                    className="btn-secondary"
-                    onClick={() => switchExercise(i)}
-                    style={{
-                      textAlign: 'left',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'stretch',
-                      gap: 4,
-                      padding: 12,
-                    }}
+                    className="card"
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 0, padding: 10 }}
                   >
-                    <div className="row-between">
-                      <strong>{entry.exercise.name}</strong>
-                      {entry.sets.length > 0 && (
-                        <span className="text-small text-muted">
-                          {entry.sets.length} set{entry.sets.length === 1 ? '' : 's'} today
-                        </span>
-                      )}
-                    </div>
-                    {topSet ? (
-                      <span className="text-small text-muted">
-                        Last: {topSet.weight_kg}kg × {topSet.reps}
-                        {fromOther && entry.history?.session.routines && (
-                          <> · <span style={{ color: entry.history.session.routines.color }}>
-                            {entry.history.session.routines.name}
-                          </span></>
+                    <button
+                      onClick={() => switchExercise(i)}
+                      style={{
+                        flex: 1,
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div className="row-between">
+                        <strong>{entry.exercise.name}</strong>
+                        {entry.sets.length > 0 && (
+                          <span className="text-small text-muted">
+                            {entry.sets.length} set{entry.sets.length === 1 ? '' : 's'} today
+                          </span>
                         )}
-                      </span>
-                    ) : (
-                      <span className="text-small text-muted">No prior history</span>
-                    )}
-                  </button>
+                      </div>
+                      {topSet ? (
+                        <span className="text-small text-muted">
+                          Last: {topSet.weight_kg}kg × {topSet.reps}
+                          {fromOther && recent?.session.routines && (
+                            <> · <span style={{ color: recent.session.routines.color }}>
+                              {recent.session.routines.name}
+                            </span></>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-small text-muted">No prior history</span>
+                      )}
+                    </button>
+                    <div className="row" style={{ gap: 2, flexShrink: 0 }}>
+                      <button
+                        className="pager-btn"
+                        onClick={() => workout.reorderExercise(i, 'up')}
+                        disabled={i === 0}
+                        aria-label="Move up"
+                        style={{ minHeight: 32, padding: 4 }}
+                      >
+                        <ChevronUp size={16} />
+                      </button>
+                      <button
+                        className="pager-btn"
+                        onClick={() => workout.reorderExercise(i, 'down')}
+                        disabled={i === workout.exercises.length - 1}
+                        aria-label="Move down"
+                        style={{ minHeight: 32, padding: 4 }}
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -204,10 +233,10 @@ export default function ActiveWorkout({
 
       {activeExercise && workout.activeIndex !== null && (
         <SetLogger
+          key={activeExercise.exercise.id}
           exercise={activeExercise.exercise}
           loggedSets={activeExercise.sets}
-          lastSessionSets={activeExercise.history?.sets ?? []}
-          lastSession={activeExercise.history?.session ?? null}
+          histories={activeExercise.histories}
           currentRoutineId={routineId}
           timerMode={timer.mode}
           retroactive={retroactive}
