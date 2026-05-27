@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
-import { updateSetRest } from '../api/sets';
 import { saveActiveWorkout, clearActiveWorkout } from '../lib/sessionPersistence';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
@@ -249,7 +248,7 @@ export default function ActiveWorkout({
             // still in flight when the user pressed Start Set.
             const targetId = lastCompletedSetIdRef.current;
             if (targetId && restSeconds > 0) {
-              updateSetRest(targetId, restSeconds).catch(() => {});
+              workout.recordRest(targetId, restSeconds);
             }
           }}
           onLogSet={async (data) => {

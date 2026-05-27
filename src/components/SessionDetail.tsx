@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react';
 import { fetchSessionSets, deleteSession } from '../api/sessions';
 import { createSet, updateSet, deleteSet } from '../api/sets';
 import type { Exercise, SetWithExercise } from '../types';
+import { formatRest } from '../lib/timer';
 import ExerciseSearch from './ExerciseSearch';
 
 interface Props {
@@ -225,12 +226,12 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
               </div>
             )}
           </div>
-          <div className="set-row set-row-header mt-8" style={editing ? { gridTemplateColumns: '50px 1fr 1fr 40px' } : undefined}>
+          <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 40px' : '50px 1fr 1fr 1fr' }}>
             <span>Set</span><span>Reps</span><span>Weight</span>
-            {editing && <span />}
+            {editing ? <span /> : <span>Rest</span>}
           </div>
           {group.sets.map((set, j) => (
-            <div key={set.id} className="set-row" style={editing ? { gridTemplateColumns: '50px 1fr 1fr 40px' } : undefined}>
+            <div key={set.id} className="set-row" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 40px' : '50px 1fr 1fr 1fr' }}>
               <span>{j + 1}</span>
               {editing ? (
                 <>
@@ -265,6 +266,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                 <>
                   <span>{set.reps}</span>
                   <span>{set.weight_kg} kg</span>
+                  <span className="text-muted">{j === 0 ? '' : formatRest(group.sets[j - 1].rest_seconds)}</span>
                 </>
               )}
             </div>
