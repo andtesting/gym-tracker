@@ -155,7 +155,7 @@ export default function SessionHistorySheet({
                           <span>{si + 1}</span>
                           <span>{s.reps}</span>
                           <span>{s.weight_kg} kg</span>
-                          <span className="text-muted">{si === 0 ? '' : formatRest(g.sets[si - 1].rest_seconds)}</span>
+                          <span className="text-muted">{formatRest(s.rest_seconds)}</span>
                         </div>
                       ))}
                     </div>

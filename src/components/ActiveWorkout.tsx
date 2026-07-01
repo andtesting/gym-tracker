@@ -34,18 +34,21 @@ export default function ActiveWorkout({
   const [sessionElapsed, setSessionElapsed] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const setStartedAtRef = useRef<string | null>(null);
-  // Local mirror of "the last set whose rest_seconds we still owe", set ONLY
-  // after createSet resolves. Avoids the race where workout.lastSetId is stale
-  // while a logSet promise is still in flight.
-  const lastCompletedSetIdRef = useRef<string | null>(null);
+  // Rest measured when the user pressed Start Set, held until the following
+  // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
+  // this set). The rest timer keeps running across an exercise switch, so this
+  // captures the gap between the previous exercise's last set and the new
+  // exercise's first set too (AND-37).
+  const pendingRestRef = useRef<number | null>(null);
 
   function switchExercise(idx: number | null) {
-    // Switching away from an in-progress set cancels it: drop the timer state
-    // and clear the started-at ref so we don't bleed the running set into a
-    // different exercise.
+    // Switching away from an in-progress set cancels it: drop the timer state,
+    // the started-at ref, and any pending rest so we don't bleed the abandoned
+    // set into a different exercise.
     if (timer.mode === 'set') {
       timer.stop();
       setStartedAtRef.current = null;
+      pendingRestRef.current = null;
     }
     workout.setActiveIndex(idx);
   }
@@ -241,40 +244,39 @@ export default function ActiveWorkout({
           retroactive={retroactive}
           onStartSet={() => {
             setStartedAtRef.current = new Date().toISOString();
+            // The rest just completed belongs to the set about to be logged
+            // (rest taken before it). Hold it until onLogSet persists the set.
             const restSeconds = timer.startSet();
-            // Attribute the rest just completed to the set we last persisted.
-            // Read from our local ref (set post-await in onLogSet) instead of
-            // workout.lastSetId, which would be stale if a logSet promise was
-            // still in flight when the user pressed Start Set.
-            const targetId = lastCompletedSetIdRef.current;
-            if (targetId && restSeconds > 0) {
-              workout.recordRest(targetId, restSeconds);
-            }
+            pendingRestRef.current = restSeconds > 0 ? restSeconds : null;
           }}
           onLogSet={async (data) => {
             if (retroactive) {
               const createdAt = retroactiveDate
                 ? new Date(`${retroactiveDate.split('T')[0]}T12:00:00`).toISOString()
                 : undefined;
-              const newSet = await workout.logSet(workout.activeIndex!, {
+              await workout.logSet(workout.activeIndex!, {
                 ...data,
                 set_duration_seconds: null,
                 started_at: null,
                 completed_at: null,
               }, null, createdAt);
-              lastCompletedSetIdRef.current = newSet.id;
               return;
             }
             const completedAt = new Date().toISOString();
             const setDuration = timer.startRest();
-            const newSet = await workout.logSet(workout.activeIndex!, {
+            // Snapshot and clear the refs BEFORE the await: if the insert is slow
+            // and the user starts the next set while it's in flight, onStartSet
+            // repopulates these refs — a post-await clear would wipe them.
+            const startedAt = setStartedAtRef.current;
+            const restSeconds = pendingRestRef.current;
+            setStartedAtRef.current = null;
+            pendingRestRef.current = null;
+            await workout.logSet(workout.activeIndex!, {
               ...data,
               set_duration_seconds: setDuration > 0 ? setDuration : null,
-              started_at: setStartedAtRef.current,
+              started_at: startedAt,
               completed_at: completedAt,
-            }, null);
-            lastCompletedSetIdRef.current = newSet.id;
-            setStartedAtRef.current = null;
+            }, restSeconds);
           }}
           onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
           onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}

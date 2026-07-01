@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import type { HeatmapSession } from '../types';
 import { UNNAMED_COLOUR, NO_WORKOUT_COLOUR } from '../lib/palette';
+import { localDateKey } from '../lib/date';
 
 interface Props {
   sessions: HeatmapSession[];
@@ -32,7 +33,7 @@ export default function ActivityHeatmap({ sessions, onCellClick }: Props) {
   // Build colour lookup: date string -> colour (first session wins)
   const colourMap = new Map<string, string>();
   for (const s of sessions) {
-    const dateKey = s.started_at.split('T')[0];
+    const dateKey = localDateKey(s.started_at);
     if (!colourMap.has(dateKey)) {
       colourMap.set(dateKey, s.routines ? s.routines.color : UNNAMED_COLOUR);
     }

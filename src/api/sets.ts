@@ -12,6 +12,10 @@ export interface CreateSetInput {
   reps: number;
   weight_kg: number;
   set_duration_seconds: number | null;
+  // Rest taken BEFORE this set (since the previously logged set in the session,
+  // across exercises). Null for the first set of a session and for retroactive
+  // sets, where no rest is measured. See AND-37.
+  rest_seconds?: number | null;
   started_at: string | null;
   completed_at: string | null;
   created_at?: string;
@@ -25,14 +29,6 @@ export async function createSet(input: CreateSetInput): Promise<WorkoutSet> {
     .single();
   if (error) throw error;
   return data;
-}
-
-export async function updateSetRest(setId: string, restSeconds: number): Promise<void> {
-  const { error } = await supabase
-    .from('sets')
-    .update({ rest_seconds: restSeconds })
-    .eq('id', setId);
-  if (error) throw error;
 }
 
 export async function updateSet(

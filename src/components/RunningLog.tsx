@@ -39,7 +39,7 @@ export default function RunningLog({ exercises, activeIndex, onSelectExercise }:
                 <span>{j + 1}</span>
                 <span>{set.reps}</span>
                 <span>{set.weight_kg} kg</span>
-                <span className="text-muted">{j === 0 ? '' : formatRest(entry.sets[j - 1].rest_seconds)}</span>
+                <span className="text-muted">{formatRest(set.rest_seconds)}</span>
               </div>
             ))}
           </div>
