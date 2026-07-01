@@ -78,7 +78,7 @@ export default function LastSessionRef({
               <span>{i + 1}</span>
               <span>{set.reps}</span>
               <span>{set.weight_kg}kg</span>
-              <span>{i === 0 ? '' : formatRest(entry.sets[i - 1].rest_seconds)}</span>
+              <span>{formatRest(set.rest_seconds)}</span>
             </div>
           ))}
         </>

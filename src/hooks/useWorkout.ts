@@ -5,7 +5,7 @@ import {
   finishSession,
   fetchExerciseHistories,
 } from '../api/sessions';
-import { createSet, updateSet as apiUpdateSet, deleteSet as apiDeleteSet, updateSetRest } from '../api/sets';
+import { createSet, updateSet as apiUpdateSet, deleteSet as apiDeleteSet } from '../api/sets';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import type { CreateSetInput } from '../api/sets';
 
@@ -122,16 +122,6 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     });
   }, [sessionId]);
 
-  // Persist the rest taken after `setId` and reflect it in local state so the
-  // live display updates immediately (updateSetRest alone is server-only).
-  const recordRest = useCallback((setId: string, seconds: number) => {
-    setExercises(prev => prev.map(e => ({
-      ...e,
-      sets: e.sets.map(s => s.id === setId ? { ...s, rest_seconds: seconds } : s),
-    })));
-    updateSetRest(setId, seconds).catch((e) => console.error('Failed to save rest:', e));
-  }, []);
-
   const reorderExercise = useCallback((index: number, direction: 'up' | 'down') => {
     setExercises(prev => {
       const target = direction === 'up' ? index - 1 : index + 1;
@@ -156,13 +146,9 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       started_at: string | null;
       completed_at: string | null;
     },
-    restSecondsForPrev: number | null,
+    restSeconds: number | null,
     createdAt?: string,
   ): Promise<WorkoutSet> => {
-    if (restSecondsForPrev !== null && lastSetId) {
-      await updateSetRest(lastSetId, restSecondsForPrev);
-    }
-
     const exercise = exercises[exerciseIndex];
     const input: CreateSetInput = {
       session_id: sessionId,
@@ -171,6 +157,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       reps: data.reps,
       weight_kg: data.weight_kg,
       set_duration_seconds: data.set_duration_seconds,
+      rest_seconds: restSeconds,
       started_at: data.started_at,
       completed_at: data.completed_at,
     };
@@ -183,7 +170,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     setSetOrder(prev => prev + 1);
     setLastSetId(newSet.id);
     return newSet;
-  }, [sessionId, exercises, setOrder, lastSetId]);
+  }, [sessionId, exercises, setOrder]);
 
   const editSet = useCallback(async (
     exerciseIndex: number,
@@ -220,7 +207,6 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     addExercise,
     removeExercise,
     reorderExercise,
-    recordRest,
     logSet,
     editSet,
     deleteSet,

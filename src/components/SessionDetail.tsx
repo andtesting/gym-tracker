@@ -266,7 +266,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                 <>
                   <span>{set.reps}</span>
                   <span>{set.weight_kg} kg</span>
-                  <span className="text-muted">{j === 0 ? '' : formatRest(group.sets[j - 1].rest_seconds)}</span>
+                  <span className="text-muted">{formatRest(set.rest_seconds)}</span>
                 </>
               )}
             </div>

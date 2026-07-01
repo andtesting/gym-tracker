@@ -3,6 +3,7 @@ import { fetchRecentSessions, fetchSessionSets, fetchHeatmapSessions } from '../
 import { signOut } from '../hooks/useAuth';
 import { saveActiveWorkout } from '../lib/sessionPersistence';
 import { toCSV, toJSON } from '../lib/export';
+import { localDateKey } from '../lib/date';
 import type { ExportRow } from '../lib/export';
 import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
 import ActivityHeatmap from './ActivityHeatmap';
@@ -21,7 +22,7 @@ export default function HomeScreen({ onNavigate }: Props) {
   const [popoverDate, setPopoverDate] = useState<string | null>(null);
 
   const sessionsForPopover = popoverDate
-    ? heatmapSessions.filter(s => s.started_at.split('T')[0] === popoverDate)
+    ? heatmapSessions.filter(s => localDateKey(s.started_at) === popoverDate)
     : [];
 
   useEffect(() => {

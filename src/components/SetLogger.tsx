@@ -136,7 +136,7 @@ export default function SetLogger({
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
-                const rest = i === 0 ? '' : formatRest(loggedSets[i - 1].rest_seconds);
+                const rest = formatRest(set.rest_seconds);
                 return (
                   <div
                     key={set.id}
