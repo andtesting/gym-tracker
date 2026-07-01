@@ -28,9 +28,14 @@ export default function HomeScreen({ onNavigate }: Props) {
   useEffect(() => {
     const now = new Date();
     const start = new Date(now);
-    start.setDate(start.getDate() - 84);
+    // Pad the fetch window a day on each side: the bounds are UTC-derived but
+    // the heatmap buckets/renders by LOCAL date, so without the pad a session on
+    // the edge day could fall outside the UTC bound and be dropped (AND-38).
+    start.setDate(start.getDate() - 85);
+    const end = new Date(now);
+    end.setDate(end.getDate() + 1);
     const startDate = start.toISOString().split('T')[0];
-    const endDate = now.toISOString().split('T')[0] + 'T23:59:59';
+    const endDate = end.toISOString().split('T')[0] + 'T23:59:59';
 
     Promise.all([
       fetchRecentSessions(14),

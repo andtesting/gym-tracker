@@ -264,14 +264,19 @@ export default function ActiveWorkout({
             }
             const completedAt = new Date().toISOString();
             const setDuration = timer.startRest();
+            // Snapshot and clear the refs BEFORE the await: if the insert is slow
+            // and the user starts the next set while it's in flight, onStartSet
+            // repopulates these refs — a post-await clear would wipe them.
+            const startedAt = setStartedAtRef.current;
+            const restSeconds = pendingRestRef.current;
+            setStartedAtRef.current = null;
+            pendingRestRef.current = null;
             await workout.logSet(workout.activeIndex!, {
               ...data,
               set_duration_seconds: setDuration > 0 ? setDuration : null,
-              started_at: setStartedAtRef.current,
+              started_at: startedAt,
               completed_at: completedAt,
-            }, pendingRestRef.current);
-            pendingRestRef.current = null;
-            setStartedAtRef.current = null;
+            }, restSeconds);
           }}
           onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
           onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}

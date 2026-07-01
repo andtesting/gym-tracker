@@ -9,6 +9,11 @@
 --   last set, where it was never displayed. The app now stores rest_seconds as
 --   the rest taken BEFORE this set, so each set is self-describing.
 --
+-- Run this together with the code change. The new UI reads rest_seconds as
+-- "rest before this set", so every session logged since AND-34 shipped will
+-- display its rest shifted by one position until this migration runs. New
+-- workouts are correct without it; historical rows are not.
+--
 -- What it does:
 --   For each session, shifts rest_seconds forward one position by set_order so
 --   historical data matches the new model:
@@ -18,26 +23,45 @@
 --
 -- Safety:
 --   * Wrapped in a transaction.
+--   * Idempotent: guarded by a `_migrations` marker row, so a second run is a
+--     no-op (a bare shift would otherwise silently shift the data again).
 --   * The window function reads the pre-migration snapshot, so the whole shift
 --     is computed atomically (no set reads another set's already-updated value).
---   * NOT idempotent: running it twice shifts twice. Run exactly once. Take a
---     backup of `sets` first (the app's export, or a `select * from sets`).
---
--- This migration is optional: the code change is correct for all NEW workouts
--- without it. It only realigns rest logged since AND-34 shipped.
+--   * Ordering has an explicit tiebreak (created_at, id) so the shift is
+--     deterministic even if a session ever had duplicate set_order values.
+--   * Still: take a backup of `sets` first (the app's export, or `select * from
+--     sets`) before running.
 
 begin;
 
-with shifted as (
-  select
-    id,
-    lag(rest_seconds) over (partition by session_id order by set_order) as new_rest
-  from sets
-)
-update sets s
-set rest_seconds = shifted.new_rest
-from shifted
-where shifted.id = s.id
-  and s.rest_seconds is distinct from shifted.new_rest;
+do $$
+begin
+  create table if not exists _migrations (
+    name text primary key,
+    applied_at timestamptz not null default now()
+  );
+
+  if exists (select 1 from _migrations where name = '2026-07-02-rest-before-set') then
+    raise notice 'Migration 2026-07-02-rest-before-set already applied; skipping.';
+    return;
+  end if;
+
+  with shifted as (
+    select
+      id,
+      lag(rest_seconds) over (
+        partition by session_id
+        order by set_order, created_at, id
+      ) as new_rest
+    from sets
+  )
+  update sets s
+  set rest_seconds = shifted.new_rest
+  from shifted
+  where shifted.id = s.id
+    and s.rest_seconds is distinct from shifted.new_rest;
+
+  insert into _migrations(name) values ('2026-07-02-rest-before-set');
+end $$;
 
 commit;
