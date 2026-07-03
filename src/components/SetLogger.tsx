@@ -260,7 +260,12 @@ export default function SetLogger({
                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           style={{ minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem', gridColumn: 'span 2' }}
                         />
+                        {/* preventDefault keeps focus on the input: browsers
+                            that don't focus buttons on tap (iOS Safari) would
+                            otherwise fire the container blur-commit, unmount
+                            this button mid-tap, and swallow the delete click. */}
                         <button
+                          onMouseDown={e => e.preventDefault()}
                           onClick={() => handleDelete(set)}
                           style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: 2, lineHeight: 0 }}
                           aria-label="Delete set"
