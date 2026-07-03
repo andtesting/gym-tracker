@@ -24,7 +24,13 @@ export async function createExercise(name: string, muscleGroupId?: string): Prom
 
 export async function updateExercise(
   id: string,
-  updates: { name?: string; muscle_group_id?: string | null },
+  updates: {
+    name?: string;
+    muscle_group_id?: string | null;
+    equipment?: string | null;
+    is_bodyweight?: boolean;
+    secondary_muscle_group_ids?: string[];
+  },
 ): Promise<void> {
   const { error } = await supabase
     .from('exercises')

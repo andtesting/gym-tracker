@@ -17,6 +17,12 @@ export interface Exercise {
   name: string;
   muscle_group_id: string | null;
   muscle_groups: MuscleGroup | null;
+  // Layer 2 metadata: correct per-muscle volume needs to know what else an
+  // exercise hits and whether the load is external. No in-app behaviour
+  // depends on these.
+  equipment: string | null;
+  is_bodyweight: boolean;
+  secondary_muscle_group_ids: string[];
   created_at: string;
 }
 

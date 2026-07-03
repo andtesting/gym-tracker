@@ -3,7 +3,16 @@ import { buildPlan } from '../../src/lib/plan';
 import type { Exercise, RoutineExerciseWithExercise, SetWithExercise } from '../../src/types';
 
 function makeExercise(id: string): Exercise {
-  return { id, name: `Exercise ${id}`, muscle_group_id: null, muscle_groups: null, created_at: '2026-01-01T00:00:00Z' };
+  return {
+    id,
+    name: `Exercise ${id}`,
+    muscle_group_id: null,
+    muscle_groups: null,
+    equipment: null,
+    is_bodyweight: false,
+    secondary_muscle_group_ids: [],
+    created_at: '2026-01-01T00:00:00Z',
+  };
 }
 
 function makeSet(exerciseId: string, order: number): SetWithExercise {
