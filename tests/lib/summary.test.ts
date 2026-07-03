@@ -15,6 +15,7 @@ function makeSet(reps: number, weight: number, order = 1): WorkoutSet {
     rest_seconds: null,
     rpe: null,
     notes: null,
+    group_id: null,
     started_at: null,
     completed_at: null,
     created_at: '2026-07-03T00:00:00Z',

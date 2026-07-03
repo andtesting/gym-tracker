@@ -16,6 +16,7 @@ export interface ExportRow {
   session_notes: string | null;
   rpe: number | null;
   set_notes: string | null;
+  group_id: string | null;
 }
 
 // Original ten columns first so existing downstream consumers keep working;
@@ -25,7 +26,7 @@ const CSV_HEADERS = [
   'date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg',
   'set_duration_seconds', 'rest_seconds', 'started_at', 'completed_at',
   'session_id', 'session_started_at', 'session_finished_at', 'session_notes',
-  'rpe', 'set_notes',
+  'rpe', 'set_notes', 'group_id',
 ] as const;
 
 function escapeCSV(value: string | number | null): string {
@@ -62,6 +63,7 @@ interface ExportSession {
       rest_seconds: number | null;
       rpe: number | null;
       notes: string | null;
+      group_id: string | null;
       started_at: string | null;
       completed_at: string | null;
     }[];
@@ -97,6 +99,7 @@ export function toJSON(rows: ExportRow[]): string {
       rest_seconds: row.rest_seconds,
       rpe: row.rpe,
       notes: row.set_notes,
+      group_id: row.group_id,
       started_at: row.started_at,
       completed_at: row.completed_at,
     });
