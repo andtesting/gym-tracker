@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
+import { isWeightPr } from '../lib/summary';
 import LastSessionRef from './LastSessionRef';
 import QuickCapture from './QuickCapture';
 
@@ -209,8 +210,9 @@ export default function SetLogger({
                         <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
                           {set.reps}
                         </span>
-                        <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
+                        <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap' }}>
                           {set.weight_kg}kg
+                          {isWeightPr(set, histories) && <span className="pr-badge">PR</span>}
                         </span>
                       </>
                     )}

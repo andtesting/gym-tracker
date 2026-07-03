@@ -11,11 +11,14 @@ import {
 } from '../lib/sessionPersistence';
 import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
+import { summariseWorkout } from '../lib/summary';
+import type { WorkoutSummary } from '../lib/summary';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
 import TimerDisplay from './TimerDisplay';
 import RunningLog from './RunningLog';
 import SessionHistorySheet from './SessionHistorySheet';
+import SessionSummary from './SessionSummary';
 
 interface Props {
   sessionId: string;
@@ -67,6 +70,7 @@ export default function ActiveWorkout({
   const [now, setNow] = useState(() => Date.now());
   const sessionElapsed = Math.max(0, Math.round((now - sessionStart) / 1000));
   const [showHistory, setShowHistory] = useState(false);
+  const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
@@ -147,11 +151,18 @@ export default function ActiveWorkout({
       const datePart = retroactiveDate.split('T')[0];
       const finishedAt = new Date(`${datePart}T12:30:00`).toISOString();
       await workout.finish(finishedAt);
-    } else {
-      await workout.finish();
+      onFinish();
+      return;
     }
-    if (!retroactive) clearActiveWorkout();
-    onFinish();
+    await workout.finish();
+    clearActiveWorkout();
+    // The summary is the reward moment; skip it for an empty session.
+    const workoutSummary = summariseWorkout(workout.exercises);
+    if (workoutSummary.totalSets > 0) {
+      setSummary(workoutSummary);
+    } else {
+      onFinish();
+    }
   }
 
   if (workout.loading) {
@@ -362,6 +373,15 @@ export default function ActiveWorkout({
           routineName={routineName}
           excludeSessionId={sessionId}
           onClose={() => setShowHistory(false)}
+        />
+      )}
+
+      {summary && (
+        <SessionSummary
+          routineName={routineName}
+          durationSeconds={sessionElapsed}
+          summary={summary}
+          onDone={onFinish}
         />
       )}
 
