@@ -2,9 +2,19 @@
 -- Run ONCE in the Supabase SQL Editor against the live database.
 --
 -- STATUS: APPLIED to prod 2026-07-03 (via Supabase MCP apply_migration). Marker row
---   '2026-07-02-rest-before-set' present in _migrations; 192/197 rows shifted, 0
---   mismatches vs a from-backup recompute, confirmed on mobile. Idempotent, so a
---   re-run against this DB is a guarded no-op. Kept for fresh-install / audit history.
+--   '2026-07-02-rest-before-set' present in _migrations; 192/197 rows shifted.
+--   Verification, honestly scoped:
+--     * The "0 mismatches vs a from-backup recompute" check only proves the UPDATE
+--       executed faithfully and deterministically. It does NOT prove the "rest
+--       before" model is correct: both sides apply the same lag(), so a wrong model
+--       would be wrong identically on both and still show 0 mismatches. It is a
+--       self-consistency check, not a model proof.
+--     * The model itself was validated by eyeballing real sessions on mobile.
+--   NOT losslessly reversible: each session's original last-set rest_seconds has no
+--   consumer in lag() and is discarded. The in-DB backup table was dropped, so the
+--   pre-migration snapshot preserved at backups/sets-pre-and37-migration-2026-07-03.json
+--   (gitignored) is the recovery source. Idempotent, so a re-run against this DB is a
+--   guarded no-op. Kept for fresh-install / audit history.
 --
 -- Background:
 --   Until now the app stored `sets.rest_seconds` as the rest taken AFTER a set
