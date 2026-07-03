@@ -27,3 +27,6 @@ dist-ssr
 
 # Local data backups (personal workout history — never commit)
 backups/
+
+# Local secrets for agent-driven verification (never commit)
+.secrets.local.json
