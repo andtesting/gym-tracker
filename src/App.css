@@ -123,7 +123,7 @@ button:active { opacity: 0.7; }
   font-size: 0.875rem;
 }
 
-input, select {
+input, select, textarea {
   font-family: inherit;
   font-size: 1rem;
   border: 1px solid var(--color-border);
@@ -134,7 +134,8 @@ input, select {
   background: var(--color-bg);
   color: var(--color-text);
 }
-input:focus, select:focus {
+textarea { resize: none; width: 100%; }
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px var(--color-accent-light);
@@ -485,6 +486,15 @@ input:focus, select:focus {
 
 .settings-section {
   margin-bottom: 28px;
+}
+
+.session-notes {
+  background: var(--color-surface);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
 }
 
 .toast-action {

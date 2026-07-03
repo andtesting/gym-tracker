@@ -13,6 +13,7 @@ import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
 import { summariseWorkout } from '../lib/summary';
 import type { WorkoutSummary } from '../lib/summary';
+import { pushOutbox } from '../lib/outbox';
 import { useSettings } from '../hooks/useSettings';
 import { formatWeight, unitLabel } from '../lib/units';
 import ExerciseSearch from './ExerciseSearch';
@@ -386,7 +387,19 @@ export default function ActiveWorkout({
           routineName={routineName}
           durationSeconds={summary.durationSeconds}
           summary={summary.data}
-          onDone={onFinish}
+          onDone={(notes) => {
+            // Through the outbox like every workout write: the note still
+            // lands if the gym has no signal at finish time.
+            if (notes) {
+              pushOutbox({
+                table: 'sessions',
+                op: 'upsert',
+                rowId: sessionId,
+                payload: { id: sessionId, notes },
+              });
+            }
+            onFinish();
+          }}
         />
       )}
 

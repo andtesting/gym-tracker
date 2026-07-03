@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react';
-import { fetchSessionSets, deleteSession } from '../api/sessions';
+import { fetchSessionSets, fetchSession, deleteSession, updateSessionNotes } from '../api/sessions';
 import { createSet, updateSet, deleteSet } from '../api/sets';
-import type { Exercise, SetWithExercise } from '../types';
+import type { Exercise, Session, SetWithExercise } from '../types';
 import { formatRest } from '../lib/timer';
 import { useSettings } from '../hooks/useSettings';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
@@ -31,6 +31,8 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [pendingReps, setPendingReps] = useState('10');
   const [pendingWeight, setPendingWeight] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
   const toast = useToast();
   const { settings } = useSettings();
   const unit = settings.unit;
@@ -41,8 +43,12 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       // The Retry toast action can outlive this screen; do nothing once gone.
       if (cancelled) return;
       setLoading(true);
-      fetchSessionSets(sessionId)
-        .then(data => { if (!cancelled) setSets(data); })
+      Promise.all([fetchSessionSets(sessionId), fetchSession(sessionId)])
+        .then(([data, sess]) => {
+          if (cancelled) return;
+          setSets(data);
+          setSession(sess);
+        })
         .catch(() => {
           if (!cancelled) toast('Failed to load session.', { label: 'Retry', onClick: load });
         })
@@ -69,6 +75,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       initial[set.id] = { reps: String(set.reps), weight_kg: formatWeight(set.weight_kg, unit) };
     }
     setEditedSets(initial);
+    setNotesDraft(session?.notes ?? '');
     setEditing(true);
   }
 
@@ -128,6 +135,11 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         if (newReps !== set.reps || newWeightKg !== set.weight_kg) {
           await updateSet(set.id, { reps: newReps, weight_kg: newWeightKg });
         }
+      }
+      const trimmedNotes = notesDraft.trim();
+      if (trimmedNotes !== (session?.notes ?? '')) {
+        await updateSessionNotes(sessionId, trimmedNotes === '' ? null : trimmedNotes);
+        setSession(prev => (prev ? { ...prev, notes: trimmedNotes === '' ? null : trimmedNotes } : prev));
       }
       const refreshed = await fetchSessionSets(sessionId);
       setSets(refreshed);
@@ -216,6 +228,22 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
 
       {loading && <p className="text-muted text-center">Loading...</p>}
       {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.875rem' }} className="mb-16">{error}</p>}
+
+      {editing ? (
+        <div className="mb-16">
+          <label className="text-small text-muted">Session notes</label>
+          <textarea
+            value={notesDraft}
+            onChange={e => setNotesDraft(e.target.value)}
+            placeholder="How did it go?"
+            rows={3}
+          />
+        </div>
+      ) : (
+        session?.notes && (
+          <p className="session-notes mb-16">{session.notes}</p>
+        )
+      )}
 
       {grouped.map((group, i) => (
         <div key={i} className="mb-16">

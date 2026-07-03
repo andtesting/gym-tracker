@@ -42,6 +42,14 @@ export async function fetchSession(sessionId: string): Promise<Session | null> {
   return data;
 }
 
+export async function updateSessionNotes(sessionId: string, notes: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ notes })
+    .eq('id', sessionId);
+  if (error) throw error;
+}
+
 export async function finishSession(sessionId: string, finishedAt?: string): Promise<void> {
   const { error } = await supabase
     .from('sessions')

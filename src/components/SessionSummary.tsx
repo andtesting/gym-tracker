@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { WorkoutSummary } from '../lib/summary';
 import { useSettings } from '../hooks/useSettings';
 import { kgToDisplay, formatWeight, unitLabel } from '../lib/units';
@@ -6,7 +7,8 @@ interface Props {
   routineName: string;
   durationSeconds: number;
   summary: WorkoutSummary;
-  onDone: () => void;
+  // Trimmed note text, or '' when left empty.
+  onDone: (notes: string) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -20,6 +22,7 @@ function formatDuration(seconds: number): string {
 // returning Home. Pure display; the session is already finished and queued.
 export default function SessionSummary({ routineName, durationSeconds, summary, onDone }: Props) {
   const { settings } = useSettings();
+  const [notes, setNotes] = useState('');
   return (
     <div className="summary-overlay">
       <div className="summary-card">
@@ -57,7 +60,15 @@ export default function SessionSummary({ routineName, durationSeconds, summary, 
           ))}
         </div>
 
-        <button className="btn-primary mt-16" onClick={onDone}>
+        <textarea
+          className="mt-16"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Notes: how did it go? Any niggles?"
+          rows={3}
+        />
+
+        <button className="btn-primary mt-16" onClick={() => onDone(notes.trim())}>
           Done
         </button>
       </div>
