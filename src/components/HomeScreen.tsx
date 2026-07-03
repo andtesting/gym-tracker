@@ -109,6 +109,7 @@ export default function HomeScreen({ onNavigate }: Props) {
       session_started_at: set.sessions.started_at,
       session_finished_at: set.sessions.finished_at,
       session_notes: set.sessions.notes,
+      rpe: set.rpe,
     }));
 
     const content = format === 'csv' ? toCSV(rows) : toJSON(rows);

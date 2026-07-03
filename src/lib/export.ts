@@ -14,14 +14,17 @@ export interface ExportRow {
   session_started_at: string;
   session_finished_at: string | null;
   session_notes: string | null;
+  rpe: number | null;
 }
 
 // Original ten columns first so existing downstream consumers keep working;
-// session identity columns appended.
+// session identity columns appended, then per-set context columns (rpe...)
+// appended after those for the same reason.
 const CSV_HEADERS = [
   'date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg',
   'set_duration_seconds', 'rest_seconds', 'started_at', 'completed_at',
   'session_id', 'session_started_at', 'session_finished_at', 'session_notes',
+  'rpe',
 ] as const;
 
 function escapeCSV(value: string | number | null): string {
@@ -56,6 +59,7 @@ interface ExportSession {
       weight_kg: number;
       set_duration_seconds: number | null;
       rest_seconds: number | null;
+      rpe: number | null;
       started_at: string | null;
       completed_at: string | null;
     }[];
@@ -89,6 +93,7 @@ export function toJSON(rows: ExportRow[]): string {
       weight_kg: row.weight_kg,
       set_duration_seconds: row.set_duration_seconds,
       rest_seconds: row.rest_seconds,
+      rpe: row.rpe,
       started_at: row.started_at,
       completed_at: row.completed_at,
     });

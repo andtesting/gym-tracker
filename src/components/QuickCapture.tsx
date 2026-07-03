@@ -6,16 +6,22 @@ import { unitLabel, round2 } from '../lib/units';
 interface Props {
   reps: string;
   weight: string;
+  rpe: number | null;
   onRepsChange: (value: string) => void;
   onWeightChange: (value: string) => void;
+  onRpeChange: (value: number | null) => void;
 }
+
+// Quick-tap range: half steps from 7 (below that, rating adds no coaching
+// signal for strength work). Tapping the selected chip clears it.
+const RPE_VALUES = [7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 // Reps/weight entry without the OS keyboard (AND-47): large tap-to-edit value
 // buttons, quick-adjust chips, and an in-app pad for full entry.
 // Non-focusable controls mean iOS never raises its keyboard and the viewport
 // never jumps mid-workout. Chips apply to whichever field is selected
 // (AND-50) and step by the user-configured amounts.
-export default function QuickCapture({ reps, weight, onRepsChange, onWeightChange }: Props) {
+export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeightChange, onRpeChange }: Props) {
   const { settings } = useSettings();
   const [activeField, setActiveField] = useState<'reps' | 'weight' | null>(null);
   // Calculator semantics: the first digit after opening a field replaces the
@@ -122,6 +128,21 @@ export default function QuickCapture({ reps, weight, onRepsChange, onWeightChang
           </button>
         ))}
       </div>
+      <div className="qc-rpe-row">
+        <span className="qc-rpe-label">RPE</span>
+        {RPE_VALUES.map(v => (
+          <button
+            key={v}
+            className={`qc-chip qc-chip-rpe ${rpe === v ? 'qc-chip-active' : ''}`}
+            onClick={() => onRpeChange(rpe === v ? null : v)}
+            aria-label={`RPE ${v}`}
+            aria-pressed={rpe === v}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
       {!activeField && (
         <p className="text-small text-muted mt-8 text-center">
           Tap reps or {unitLabel(settings.unit)} to adjust.

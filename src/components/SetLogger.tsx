@@ -6,6 +6,7 @@ import { isWeightPr } from '../lib/summary';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
+import { normalizeRpe } from '../lib/rpe';
 import type { WeightUnit } from '../lib/settings';
 import LastSessionRef from './LastSessionRef';
 import QuickCapture from './QuickCapture';
@@ -35,8 +36,8 @@ interface Props {
   timerMode: 'idle' | 'rest' | 'set';
   retroactive?: boolean;
   onStartSet: () => void;
-  onLogSet: (data: { reps: number; weight_kg: number }) => Promise<void>;
-  onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number }) => Promise<void>;
+  onLogSet: (data: { reps: number; weight_kg: number; rpe: number | null }) => Promise<void>;
+  onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number; rpe?: number | null }) => Promise<void>;
   onDeleteSet: (setId: string) => Promise<void>;
   onRestoreSet: (set: WorkoutSet) => boolean;
   onRemoveExercise: () => void;
@@ -64,9 +65,14 @@ export default function SetLogger({
   const [initialPrefill] = useState(() => prefillValues(loggedSets, histories, unit));
   const [reps, setReps] = useState(initialPrefill?.reps ?? '');
   const [weight, setWeight] = useState(initialPrefill?.weight ?? '');
+  // RPE is deliberately NOT prefilled from the previous set: effort is the one
+  // number that genuinely changes set to set, and a stale carried-over rating
+  // is worse than none. One tap to rate, or log unrated.
+  const [rpe, setRpe] = useState<number | null>(null);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');
+  const [editRpe, setEditRpe] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [histIndex, setHistIndex] = useState(0);
@@ -100,11 +106,13 @@ export default function SetLogger({
     setSubmitting(true);
     setError(null);
     try {
-      await onLogSet({ reps: r, weight_kg: displayToKg(w, unit) });
+      await onLogSet({ reps: r, weight_kg: displayToKg(w, unit), rpe });
       // Keep the just-logged values as the next set's prefill (repeat sets are
-      // the majority case), normalised through the parsers.
+      // the majority case), normalised through the parsers. RPE resets: see
+      // the state declaration.
       setReps(String(r));
       setWeight(String(w));
+      setRpe(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to log set');
     } finally {
@@ -116,6 +124,7 @@ export default function SetLogger({
     setEditingSetId(set.id);
     setEditReps(String(set.reps));
     setEditWeight(formatWeight(set.weight_kg, unit));
+    setEditRpe(set.rpe == null ? '' : String(set.rpe));
     setError(null);
   }
 
@@ -123,12 +132,14 @@ export default function SetLogger({
     const r = parseInt(editReps, 10);
     const w = parseFloat(editWeight);
     const wKg = isNaN(w) ? NaN : displayToKg(w, unit);
-    if (isNaN(r) || isNaN(wKg) || r === set.reps && wKg === set.weight_kg) {
+    const newRpe = normalizeRpe(editRpe);
+    // set.rpe ?? null: pre-deploy localStorage records lack the key entirely.
+    if (isNaN(r) || isNaN(wKg) || (r === set.reps && wKg === set.weight_kg && newRpe === (set.rpe ?? null))) {
       setEditingSetId(null);
       return;
     }
     try {
-      await onEditSet(set.id, { reps: r, weight_kg: wKg });
+      await onEditSet(set.id, { reps: r, weight_kg: wKg, rpe: newRpe });
       setEditingSetId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save edit');
@@ -189,8 +200,8 @@ export default function SetLogger({
             <p className="text-small text-muted">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px 20px', gap: 4 }}>
-                <span>#</span><span>Reps</span><span>{unitHeader(unit)}</span><span>Rest</span><span />
+              <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}>
+                <span>#</span><span>Reps</span><span>{unitHeader(unit)}</span><span>RPE</span><span>Rest</span><span />
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
@@ -204,7 +215,7 @@ export default function SetLogger({
                   <div
                     key={set.id}
                     className="set-row"
-                    style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px 20px', gap: 4 }}
+                    style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}
                   >
                     <span>{i + 1}</span>
                     {editing ? (
@@ -228,6 +239,17 @@ export default function SetLogger({
                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           style={{ minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem' }}
                         />
+                        {/* RPE input takes the RPE+Rest cells; rest is not editable anyway. */}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editRpe}
+                          placeholder="RPE"
+                          onChange={e => setEditRpe(e.target.value)}
+                          onBlur={() => commitEdit(set)}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          style={{ minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem', gridColumn: 'span 2' }}
+                        />
                       </>
                     ) : (
                       <>
@@ -238,9 +260,16 @@ export default function SetLogger({
                           {formatWeight(set.weight_kg, unit)}
                           {isPr && <span className="pr-badge">PR</span>}
                         </span>
+                        <span
+                          className="text-muted"
+                          onClick={() => startEdit(set)}
+                          style={{ fontSize: '0.75rem', cursor: 'pointer' }}
+                        >
+                          {set.rpe ?? ''}
+                        </span>
+                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
                       </>
                     )}
-                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
                     <button
                       onClick={() => handleDelete(set)}
                       style={{
@@ -294,8 +323,10 @@ export default function SetLogger({
           key={loggedSets.length}
           reps={reps}
           weight={weight}
+          rpe={rpe}
           onRepsChange={setReps}
           onWeightChange={setWeight}
+          onRpeChange={setRpe}
         />
       </div>
     </div>
