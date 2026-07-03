@@ -174,8 +174,12 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       label: 'Delete session',
       action: async () => {
         setConfirm(null);
-        await deleteSession(sessionId);
-        onBack();
+        try {
+          await deleteSession(sessionId);
+          onBack();
+        } catch {
+          toast('Failed to delete session. Check your connection and try again.');
+        }
       },
     });
   }
