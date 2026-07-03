@@ -1,19 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Delete } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
-import { unitLabel } from '../lib/units';
+import { unitLabel, round2 } from '../lib/units';
 
 interface Props {
   reps: string;
   weight: string;
   onRepsChange: (value: string) => void;
   onWeightChange: (value: string) => void;
-}
-
-// Trims float noise and trailing zeros so chip nudges read "62.5", not
-// "62.50000000000001".
-function formatNumber(n: number): string {
-  return String(Math.round(n * 100) / 100);
 }
 
 // Reps/weight entry without the OS keyboard (AND-47): large tap-to-edit value
@@ -82,7 +76,8 @@ export default function QuickCapture({ reps, weight, onRepsChange, onWeightChang
     } else {
       const current = parseFloat(weight);
       const next = Math.max(0, (isNaN(current) ? 0 : current) + delta);
-      onWeightChange(formatNumber(next));
+      // round2 trims float noise so a nudge reads "62.5", not "62.500000001".
+      onWeightChange(String(round2(next)));
     }
   }
 

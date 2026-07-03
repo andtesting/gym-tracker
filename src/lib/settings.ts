@@ -39,12 +39,22 @@ export function saveSettings(userId: string, settings: Settings): void {
   localStorage.setItem(storageKey(userId), JSON.stringify(settings));
 }
 
+const THEME_BG = { light: '#ffffff', dark: '#121316' } as const;
+
 // 'system' removes the override so the prefers-color-scheme media query
-// rules apply; an explicit choice pins the matching variable block.
+// rules apply; an explicit choice pins the matching variable block. The
+// theme-color metas only follow the OS, so an explicit choice must pin them
+// too or the iOS status bar keeps the opposite colour.
 export function applyTheme(theme: ThemePreference): void {
+  const metas = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
   if (theme === 'system') {
     delete document.documentElement.dataset.theme;
+    metas.forEach(m => {
+      const media = m.getAttribute('media') ?? '';
+      m.content = media.includes('dark') ? THEME_BG.dark : THEME_BG.light;
+    });
   } else {
     document.documentElement.dataset.theme = theme;
+    metas.forEach(m => { m.content = THEME_BG[theme]; });
   }
 }

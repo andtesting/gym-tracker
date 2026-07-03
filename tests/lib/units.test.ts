@@ -13,17 +13,18 @@ describe('units', () => {
     expect(kgToDisplay(100, 'lb')).toBe(220.46);
   });
 
-  it('converts entered lb back to kg, rounded to 3dp', () => {
-    expect(displayToKg(135, 'lb')).toBe(61.235);
-    expect(displayToKg(220.46, 'lb')).toBe(99.999);
+  it('converts entered lb back to kg, rounded to 2dp', () => {
+    expect(displayToKg(135, 'lb')).toBe(61.23);
+    expect(displayToKg(220.46, 'lb')).toBe(100);
   });
 
-  it('round-trips kg -> lb -> kg within a rounding tolerance', () => {
-    for (const kg of [20, 62.5, 100, 142.5]) {
-      const back = displayToKg(kgToDisplay(kg, 'lb'), 'lb');
-      expect(Math.abs(back - kg)).toBeLessThan(0.01);
+  it('round-trips a stored 2dp kg value exactly (no false PR drift)', () => {
+    for (const kg of [20, 25, 30, 45, 60, 62.5, 75, 90, 105, 125, 140, 73.64]) {
+      expect(displayToKg(kgToDisplay(kg, 'lb'), 'lb')).toBe(kg);
     }
   });
+
+
 
   it('provides header labels', () => {
     expect(unitHeader('kg')).toBe('Kg');

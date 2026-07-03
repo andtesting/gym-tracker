@@ -256,7 +256,7 @@ input:focus, select:focus {
 .toggle-group button {
   flex: 1;
   border-radius: 0;
-  min-height: 36px;
+  min-height: var(--touch-min);
   background: var(--color-bg);
   color: var(--color-text);
   font-size: 0.875rem;

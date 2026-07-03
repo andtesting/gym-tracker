@@ -13,13 +13,17 @@ export default function SettingsProvider({ userId, children }: { userId: string;
     applyTheme(settings.theme);
   }, [settings.theme]);
 
-  useEffect(() => {
-    saveSettings(userId, settings);
-  }, [userId, settings]);
-
+  // Persist only on explicit change: saving defaults on mount would pin a
+  // user who never opened Settings to TODAY'S defaults, defeating the
+  // forward-compat merge in loadSettings. The save inside the updater runs
+  // twice under StrictMode; writing identical JSON twice is harmless.
   const update = useCallback((patch: Partial<Settings>) => {
-    setSettings(prev => ({ ...prev, ...patch }));
-  }, []);
+    setSettings(prev => {
+      const next = { ...prev, ...patch };
+      saveSettings(userId, next);
+      return next;
+    });
+  }, [userId]);
 
   const value = useMemo(() => ({ settings, update }), [settings, update]);
 
