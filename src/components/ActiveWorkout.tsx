@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
+import { fetchSession } from '../api/sessions';
 import { saveActiveWorkout, clearActiveWorkout } from '../lib/sessionPersistence';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
@@ -30,8 +31,11 @@ export default function ActiveWorkout({
 }: Props) {
   const workout = useWorkout(sessionId, routineId, { retroactive });
   const timer = useTimer();
-  const [sessionStart] = useState(() => Date.now());
-  const [sessionElapsed, setSessionElapsed] = useState(0);
+  // Mount time is only a placeholder until the session row loads: a resumed
+  // session must show elapsed since started_at, not since remount (AND-45).
+  const [sessionStart, setSessionStart] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  const sessionElapsed = Math.max(0, Math.round((now - sessionStart) / 1000));
   const [showHistory, setShowHistory] = useState(false);
   const setStartedAtRef = useRef<string | null>(null);
   // Rest measured when the user pressed Start Set, held until the following
@@ -61,11 +65,18 @@ export default function ActiveWorkout({
 
   useEffect(() => {
     if (retroactive) return;
-    const interval = window.setInterval(() => {
-      setSessionElapsed(Math.round((Date.now() - sessionStart) / 1000));
-    }, 1000);
+    fetchSession(sessionId)
+      .then(s => {
+        if (s?.started_at) setSessionStart(Date.parse(s.started_at));
+      })
+      .catch(() => {});
+  }, [sessionId, retroactive]);
+
+  useEffect(() => {
+    if (retroactive) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [sessionStart, retroactive]);
+  }, [retroactive]);
 
   function formatDuration(seconds: number): string {
     const h = Math.floor(seconds / 3600);

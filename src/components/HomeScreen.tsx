@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchRecentSessions, fetchSessionSets, fetchHeatmapSessions } from '../api/sessions';
+import { fetchRecentSessions, fetchHeatmapSessions, fetchExportSets } from '../api/sessions';
 import { signOut } from '../hooks/useAuth';
 import { saveActiveWorkout } from '../lib/sessionPersistence';
 import { toCSV, toJSON } from '../lib/export';
@@ -9,6 +9,7 @@ import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
 import ActivityHeatmap from './ActivityHeatmap';
 import ExportDropdown from './ExportDropdown';
 import DayDetailSheet from './DayDetailSheet';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   onNavigate: (screen: Screen) => void;
@@ -20,6 +21,7 @@ export default function HomeScreen({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [popoverDate, setPopoverDate] = useState<string | null>(null);
+  const toast = useToast();
 
   const sessionsForPopover = popoverDate
     ? heatmapSessions.filter(s => localDateKey(s.started_at) === popoverDate)
@@ -50,25 +52,29 @@ export default function HomeScreen({ onNavigate }: Props) {
   }, []);
 
   async function handleExport(format: 'csv' | 'json') {
-    const allSessions = await fetchRecentSessions(1000);
-    const rows: ExportRow[] = [];
-    for (const session of allSessions) {
-      const sets = await fetchSessionSets(session.id);
-      for (const set of sets) {
-        rows.push({
-          date: session.started_at.split('T')[0],
-          routine: session.routines?.name ?? 'Unnamed Routine',
-          exercise: set.exercises?.name ?? 'Unnamed Exercise',
-          set_type: set.set_type,
-          reps: set.reps,
-          weight_kg: set.weight_kg,
-          set_duration_seconds: set.set_duration_seconds,
-          rest_seconds: set.rest_seconds,
-          started_at: set.started_at,
-          completed_at: set.completed_at,
-        });
-      }
+    let exportSets;
+    try {
+      exportSets = await fetchExportSets();
+    } catch {
+      toast('Export failed. Check your connection and try again.');
+      return;
     }
+    const rows: ExportRow[] = exportSets.map(set => ({
+      date: localDateKey(set.sessions.started_at),
+      routine: set.sessions.routines?.name ?? 'Unnamed Routine',
+      exercise: set.exercises?.name ?? 'Unnamed Exercise',
+      set_type: set.set_type,
+      reps: set.reps,
+      weight_kg: set.weight_kg,
+      set_duration_seconds: set.set_duration_seconds,
+      rest_seconds: set.rest_seconds,
+      started_at: set.started_at,
+      completed_at: set.completed_at,
+      session_id: set.sessions.id,
+      session_started_at: set.sessions.started_at,
+      session_finished_at: set.sessions.finished_at,
+      session_notes: set.sessions.notes,
+    }));
 
     const content = format === 'csv' ? toCSV(rows) : toJSON(rows);
     const blob = new Blob([content], { type: format === 'csv' ? 'text/csv' : 'application/json' });

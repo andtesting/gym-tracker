@@ -76,7 +76,7 @@ export default function ActivityHeatmap({ sessions, onCellClick }: Props) {
       {monthLabels.map((label, colIdx) => (
         <div key={`month-${colIdx}`} style={{
           fontSize: '10px',
-          color: '#6b7280',
+          color: 'var(--color-muted)',
           textAlign: 'left',
           lineHeight: '1',
           paddingBottom: '2px',
@@ -92,7 +92,7 @@ export default function ActivityHeatmap({ sessions, onCellClick }: Props) {
           {/* Row label */}
           <div style={{
             fontSize: '10px',
-            color: '#6b7280',
+            color: 'var(--color-muted)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',

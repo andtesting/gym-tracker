@@ -8,6 +8,7 @@ import {
 import { createSet, updateSet as apiUpdateSet, deleteSet as apiDeleteSet } from '../api/sets';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import type { CreateSetInput } from '../api/sets';
+import { useToast } from './useToast';
 
 export interface ActiveExercise {
   exercise: Exercise;
@@ -27,6 +28,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
   const [setOrder, setSetOrder] = useState(1);
   const [lastSetId, setLastSetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   useEffect(() => {
     const lastSamePromise = fetchLastSession(routineId).catch((e) => {
@@ -95,9 +97,12 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
           setLastSetId(lastSet.id);
         }
       })
-      .catch((e) => console.error('Failed to load session data:', e))
+      .catch((e) => {
+        console.error('Failed to load session data:', e);
+        toast('Failed to load session data. Check your connection and reopen the workout.');
+      })
       .finally(() => setLoading(false));
-  }, [sessionId, routineId]);
+  }, [sessionId, routineId, toast]);
 
   const addExercise = useCallback((exercise: Exercise) => {
     setExercises(prev => {
