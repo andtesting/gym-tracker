@@ -229,7 +229,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       {loading && <p className="text-muted text-center">Loading...</p>}
       {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.875rem' }} className="mb-16">{error}</p>}
 
-      {editing ? (
+      {editing && session ? (
         <div className="mb-16">
           <label className="text-small text-muted">Session notes</label>
           <textarea
