@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Settings as SettingsIcon } from 'lucide-react';
 import { fetchRecentSessions, fetchHeatmapSessions, fetchExportSets } from '../api/sessions';
 import { signOut } from '../hooks/useAuth';
 import { saveActiveWorkout, loadActiveWorkout } from '../lib/sessionPersistence';
@@ -107,6 +108,14 @@ export default function HomeScreen({ onNavigate }: Props) {
               Syncing {pendingSync}…
             </span>
           )}
+          <button
+            className="btn-secondary btn-small"
+            onClick={() => onNavigate({ name: 'settings' })}
+            aria-label="Settings"
+            style={{ display: 'flex', alignItems: 'center' }}
+          >
+            <SettingsIcon size={16} />
+          </button>
           <button className="btn-secondary btn-small" onClick={() => onNavigate({ name: 'editMode' })}>Edit</button>
           <button className="btn-secondary btn-small" onClick={signOut}>Logout</button>
         </div>

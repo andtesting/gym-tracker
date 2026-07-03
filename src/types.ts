@@ -80,4 +80,5 @@ export type Screen =
   | { name: 'logPastWorkout'; date?: string }
   | { name: 'retroactiveWorkout'; sessionId: string; routineId: string; routineName: string; date: string }
   | { name: 'editMode' }
-  | { name: 'trends' };
+  | { name: 'trends' }
+  | { name: 'settings' };

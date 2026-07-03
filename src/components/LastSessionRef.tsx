@@ -1,6 +1,8 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
+import { useSettings } from '../hooks/useSettings';
+import { formatWeight, unitHeader } from '../lib/units';
 
 interface Props {
   entry: ExerciseHistoryEntry | null;
@@ -18,6 +20,7 @@ function formatDate(iso: string): string {
 export default function LastSessionRef({
   entry, currentRoutineId, index, total, onOlder, onNewer,
 }: Props) {
+  const { settings } = useSettings();
   const fromOtherRoutine = entry ? entry.session.routine_id !== currentRoutineId : false;
   const routineName = entry?.session.routines?.name ?? 'Unnamed';
 
@@ -71,13 +74,13 @@ export default function LastSessionRef({
       {entry && (
         <>
           <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px', gap: 4 }}>
-            <span>#</span><span>Reps</span><span>Wt</span><span>Rest</span>
+            <span>#</span><span>Reps</span><span>{unitHeader(settings.unit)}</span><span>Rest</span>
           </div>
           {entry.sets.map((set, i) => (
             <div key={set.id} className="set-row ref-column" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px', gap: 4 }}>
               <span>{i + 1}</span>
               <span>{set.reps}</span>
-              <span>{set.weight_kg}kg</span>
+              <span>{formatWeight(set.weight_kg, settings.unit)}</span>
               <span>{formatRest(set.rest_seconds)}</span>
             </div>
           ))}

@@ -1,5 +1,7 @@
 import type { WorkoutSet, Exercise } from '../types';
 import { formatRest } from '../lib/timer';
+import { useSettings } from '../hooks/useSettings';
+import { formatWeight, unitHeader } from '../lib/units';
 
 interface ExerciseEntry {
   exercise: Exercise;
@@ -13,6 +15,7 @@ interface Props {
 }
 
 export default function RunningLog({ exercises, activeIndex, onSelectExercise }: Props) {
+  const { settings } = useSettings();
   const logged = exercises.filter(e => e.sets.length > 0);
   if (logged.length === 0) return null;
 
@@ -32,13 +35,13 @@ export default function RunningLog({ exercises, activeIndex, onSelectExercise }:
             <strong>{entry.exercise.name}</strong>
             <span className="text-small text-muted"> ({entry.sets.length} sets)</span>
             <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
-              <span>#</span><span>Reps</span><span>Weight</span><span>Rest</span>
+              <span>#</span><span>Reps</span><span>{unitHeader(settings.unit)}</span><span>Rest</span>
             </div>
             {entry.sets.map((set, j) => (
               <div key={set.id} className="set-row" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
                 <span>{j + 1}</span>
                 <span>{set.reps}</span>
-                <span>{set.weight_kg} kg</span>
+                <span>{formatWeight(set.weight_kg, settings.unit)}</span>
                 <span className="text-muted">{formatRest(set.rest_seconds)}</span>
               </div>
             ))}

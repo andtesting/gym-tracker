@@ -1,4 +1,6 @@
 import { Fragment } from 'react';
+import { useSettings } from '../hooks/useSettings';
+import { kgToDisplay, unitLabel } from '../lib/units';
 
 interface SetData {
   set_order: number;
@@ -24,6 +26,8 @@ function formatDate(iso: string): string {
 }
 
 export default function TrendsChart({ data, mode }: Props) {
+  const { settings } = useSettings();
+  const weightSuffix = unitLabel(settings.unit);
   if (data.length === 0) {
     return <p className="text-muted text-center mt-16">No data for this exercise yet.</p>;
   }
@@ -108,15 +112,15 @@ export default function TrendsChart({ data, mode }: Props) {
                   }}
                 >
                   <div className="trends-value">
-                    {primary}
-                    {mode === 'weight' ? 'kg' : 'r'}
+                    {mode === 'weight' ? kgToDisplay(primary, settings.unit) : primary}
+                    {mode === 'weight' ? weightSuffix : 'r'}
                   </div>
                   <div
                     className="trends-bar"
                     style={{ height: barHeight, background: barColour, width: '100%' }}
                   />
                   <div className="trends-value">
-                    {secondary > 0 ? `${secondary}${mode === 'weight' ? 'r' : 'kg'}` : ''}
+                    {secondary > 0 ? `${mode === 'weight' ? secondary : kgToDisplay(secondary, settings.unit)}${mode === 'weight' ? 'r' : weightSuffix}` : ''}
                   </div>
                 </div>
               );

@@ -68,6 +68,7 @@ The hook merges current sets with the last same-routine session into an ordered 
 ## Conventions
 
 - **Mobile-first.** Layout is constrained to `max-width: 480px`. All buttons have `min-height: 44px` (`--touch-min`). Fixed `bottom-bar` and `bottom-bar-two-row` for primary actions.
+- **Settings and units.** Per-user preferences (theme, weight unit, quick-step values) persist in localStorage keyed by user id (`lib/settings.ts`, `SettingsProvider`/`useSettings`). **Weight is ALWAYS stored in kg**; the chosen unit converts only at the render/entry boundary via `lib/units.ts` (`formatWeight`/`displayToKg`, 2dp both ways for a stable round-trip). Any new weight display or input must go through these helpers, and weight columns put the unit in the header (Kg/Lb) with bare numbers in cells.
 - **Styling.** Plain CSS in `src/App.css` with CSS custom properties. No CSS modules, no Tailwind, no styled-components. Inline `style={}` is fine for one-offs.
 - **No comments unless WHY is non-obvious.** Don't restate what code does.
 - **Error handling.** Action errors show inline via local `error` state where the user is looking (e.g. SetLogger). Load/background failures surface through the toast primitive (`hooks/useToast` + `components/Toast`, provider mounted in `main.tsx`), optionally with a retry action. Every data fetch must surface its failure one of these two ways; never swallow.

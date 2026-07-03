@@ -14,6 +14,8 @@ import ActiveWorkout from './components/ActiveWorkout';
 import EditModeScreen from './components/EditModeScreen';
 import TrendsView from './components/TrendsView';
 import LogPastWorkoutScreen from './components/LogPastWorkoutScreen';
+import SettingsProvider from './components/SettingsProvider';
+import SettingsScreen from './components/SettingsScreen';
 
 function SetupScreen() {
   return (
@@ -113,7 +115,8 @@ export default function App() {
   if (!resumeChecked) return loadingScreen;
 
   return (
-    <div className="app">
+    <SettingsProvider key={session.user.id} userId={session.user.id}>
+      <div className="app">
       {screen.name === 'home' && (
         <HomeScreen onNavigate={navigate} />
       )}
@@ -155,6 +158,10 @@ export default function App() {
           onHome={() => navigate({ name: 'home' })}
         />
       )}
-    </div>
+      {screen.name === 'settings' && (
+        <SettingsScreen onBack={() => navigate({ name: 'home' })} />
+      )}
+      </div>
+    </SettingsProvider>
   );
 }
