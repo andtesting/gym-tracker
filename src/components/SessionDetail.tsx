@@ -34,6 +34,8 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   useEffect(() => {
     let cancelled = false;
     function load() {
+      // The Retry toast action can outlive this screen; do nothing once gone.
+      if (cancelled) return;
       setLoading(true);
       fetchSessionSets(sessionId)
         .then(data => { if (!cancelled) setSets(data); })

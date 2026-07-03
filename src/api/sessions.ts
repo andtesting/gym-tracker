@@ -109,23 +109,38 @@ export interface ExportSetRow {
   exercises: { name: string } | null;
 }
 
-// Every set with its session context in ONE request (the previous export did
-// one request per session). PostgREST can't order outer rows by a referenced
-// table's column, so ordering happens client-side: sessions newest first,
-// sets in set_order within a session.
+// Session started_at DESC, stable id tie-break, then set_order ASC. Shared by
+// the export fetch and fetchExerciseHistories: PostgREST can't order outer
+// rows by a referenced table's column, so both sort client-side.
+function compareBySessionThenOrder(
+  a: { sessions: { started_at: string; id: string }; set_order: number },
+  b: { sessions: { started_at: string; id: string }; set_order: number },
+): number {
+  const cmp = b.sessions.started_at.localeCompare(a.sessions.started_at);
+  if (cmp !== 0) return cmp;
+  const idCmp = b.sessions.id.localeCompare(a.sessions.id);
+  if (idCmp !== 0) return idCmp;
+  return a.set_order - b.set_order;
+}
+
+// Every set with its session context, paginated: supabase-js caps un-ranged
+// queries at PostgREST's max-rows (default 1000), which would silently
+// truncate the export once total sets exceed it.
 export async function fetchExportSets(): Promise<ExportSetRow[]> {
-  const { data, error } = await supabase
-    .from('sets')
-    .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)');
-  if (error) throw error;
-  const rows = data as unknown as ExportSetRow[];
-  rows.sort((a, b) => {
-    const cmp = b.sessions.started_at.localeCompare(a.sessions.started_at);
-    if (cmp !== 0) return cmp;
-    const idCmp = a.sessions.id.localeCompare(b.sessions.id);
-    if (idCmp !== 0) return idCmp;
-    return a.set_order - b.set_order;
-  });
+  const PAGE = 1000;
+  const rows: ExportSetRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('sets')
+      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)')
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const page = data as unknown as ExportSetRow[];
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
+  rows.sort(compareBySessionThenOrder);
   return rows;
 }
 
@@ -164,15 +179,7 @@ export async function fetchExerciseHistories(
   type Row = WorkoutSet & { sessions: SessionWithRoutine };
   const rows = data as unknown as Row[];
 
-  // Sort by session.started_at DESC, tie-break by session.id (stable), then
-  // set_order ASC so each session's sets come out in order.
-  rows.sort((a, b) => {
-    const cmp = b.sessions.started_at.localeCompare(a.sessions.started_at);
-    if (cmp !== 0) return cmp;
-    const idCmp = b.sessions.id.localeCompare(a.sessions.id);
-    if (idCmp !== 0) return idCmp;
-    return a.set_order - b.set_order;
-  });
+  rows.sort(compareBySessionThenOrder);
 
   const result = new Map<string, ExerciseHistoryEntry[]>();
   // Track, per exercise, the session_id of the entry we're currently appending

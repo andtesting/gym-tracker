@@ -283,7 +283,7 @@ input:focus, select:focus {
 .toast-action {
   background: rgba(255, 255, 255, 0.2);
   color: white;
-  min-height: 32px;
+  min-height: var(--touch-min);
   padding: 4px 12px;
   font-size: 0.8125rem;
   font-weight: 600;

@@ -48,8 +48,9 @@ export default function SetLogger({
   onRemoveExercise,
   onBackToPlan,
 }: Props) {
-  const [reps, setReps] = useState(() => prefillValues(loggedSets, histories)?.reps ?? '');
-  const [weight, setWeight] = useState(() => prefillValues(loggedSets, histories)?.weight ?? '');
+  const [initialPrefill] = useState(() => prefillValues(loggedSets, histories));
+  const [reps, setReps] = useState(initialPrefill?.reps ?? '');
+  const [weight, setWeight] = useState(initialPrefill?.weight ?? '');
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');

@@ -9,6 +9,7 @@ import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
 import ActivityHeatmap from './ActivityHeatmap';
 import ExportDropdown from './ExportDropdown';
 import DayDetailSheet from './DayDetailSheet';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   onNavigate: (screen: Screen) => void;
@@ -20,6 +21,7 @@ export default function HomeScreen({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [popoverDate, setPopoverDate] = useState<string | null>(null);
+  const toast = useToast();
 
   const sessionsForPopover = popoverDate
     ? heatmapSessions.filter(s => localDateKey(s.started_at) === popoverDate)
@@ -50,7 +52,13 @@ export default function HomeScreen({ onNavigate }: Props) {
   }, []);
 
   async function handleExport(format: 'csv' | 'json') {
-    const exportSets = await fetchExportSets();
+    let exportSets;
+    try {
+      exportSets = await fetchExportSets();
+    } catch {
+      toast('Export failed. Check your connection and try again.');
+      return;
+    }
     const rows: ExportRow[] = exportSets.map(set => ({
       date: localDateKey(set.sessions.started_at),
       routine: set.sessions.routines?.name ?? 'Unnamed Routine',
