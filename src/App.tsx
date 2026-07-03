@@ -17,10 +17,10 @@ function SetupScreen() {
   return (
     <div className="app" style={{ padding: '2rem', textAlign: 'center' }}>
       <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Gym Tracker</h1>
-      <p style={{ color: '#666', marginBottom: '1.5rem' }}>
+      <p style={{ color: 'var(--color-muted)', marginBottom: '1.5rem' }}>
         Supabase is not configured yet.
       </p>
-      <div style={{ textAlign: 'left', background: '#f5f5f5', padding: '1rem', borderRadius: '8px', fontSize: '0.9rem' }}>
+      <div style={{ textAlign: 'left', background: 'var(--color-surface)', padding: '1rem', borderRadius: '8px', fontSize: '0.9rem' }}>
         <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>To get started:</p>
         <ol style={{ paddingLeft: '1.2rem', lineHeight: 1.8 }}>
           <li>Create a project at supabase.com</li>

@@ -26,7 +26,7 @@ export default function ColourPicker({ selected, onSelect }: Props) {
             height: 36,
             borderRadius: '50%',
             background: colour,
-            border: `3px solid ${colour === selected ? '#1e293b' : 'transparent'}`,
+            border: `3px solid ${colour === selected ? 'var(--color-text)' : 'transparent'}`,
             cursor: 'pointer',
             margin: '0 auto',
           }}
