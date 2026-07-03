@@ -247,7 +247,13 @@ export default function ActiveWorkout({
         </div>
       </div>
 
-      {!retroactive && <TimerDisplay mode={timer.mode} elapsed={timer.elapsed} />}
+      {!retroactive && (
+        <TimerDisplay
+          mode={timer.mode}
+          elapsed={timer.elapsed}
+          restTargetSeconds={activeExercise?.template?.target_rest_seconds ?? null}
+        />
+      )}
 
       <ExerciseSearch onSelect={workout.addExercise} primaryMuscleGroupId={primaryMuscleGroupId} />
 
@@ -307,6 +313,19 @@ export default function ActiveWorkout({
                         </span>
                       ) : (
                         <span className="text-small text-muted">No prior history</span>
+                      )}
+                      {entry.template && (entry.template.target_sets || entry.template.target_reps || entry.template.target_weight_kg || entry.template.target_rest_seconds) && (
+                        <span className="text-small text-muted">
+                          Target:
+                          {entry.template.target_sets != null && <> {entry.template.target_sets}×</>}
+                          {entry.template.target_reps != null && <>{entry.template.target_reps}</>}
+                          {entry.template.target_weight_kg != null && (
+                            <> @ {formatWeight(entry.template.target_weight_kg, settings.unit)} {unitLabel(settings.unit)}</>
+                          )}
+                          {entry.template.target_rest_seconds != null && (
+                            <> · rest {entry.template.target_rest_seconds}s</>
+                          )}
+                        </span>
                       )}
                     </button>
                     <div className="row" style={{ gap: 2, flexShrink: 0 }}>

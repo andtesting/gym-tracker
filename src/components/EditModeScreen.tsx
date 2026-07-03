@@ -3,10 +3,15 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchRoutines, createRoutine, updateRoutine, deleteRoutine } from '../api/routines';
 import { fetchExercises, updateExercise, deleteExercise } from '../api/exercises';
 import { fetchMuscleGroups, createMuscleGroup, updateMuscleGroup, deleteMuscleGroup } from '../api/muscleGroups';
-import type { Routine, Exercise, MuscleGroup } from '../types';
+import { fetchRoutineExercises, addRoutineExercise, updateRoutineExercise, deleteRoutineExercise } from '../api/routineExercises';
+import type { Routine, Exercise, MuscleGroup, RoutineExerciseWithExercise } from '../types';
+import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../hooks/useToast';
+import { formatWeight, displayToKg, unitLabel } from '../lib/units';
 import ColourPicker from './ColourPicker';
 import MuscleGroupPicker from './MuscleGroupPicker';
 import ConfirmSheet from './ConfirmSheet';
+import ExerciseSearch from './ExerciseSearch';
 
 interface Props {
   onBack: () => void;
@@ -21,6 +26,11 @@ export default function EditModeScreen({ onBack }: Props) {
   const [newRoutineName, setNewRoutineName] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [confirm, setConfirm] = useState<{ title: string; message: string; label: string; action: () => void } | null>(null);
+  // Routine template editor (AND-6): one routine's plan open at a time.
+  const [planFor, setPlanFor] = useState<string | null>(null);
+  const [planItems, setPlanItems] = useState<RoutineExerciseWithExercise[]>([]);
+  const { settings } = useSettings();
+  const toast = useToast();
 
   useEffect(() => {
     fetchRoutines().then(setRoutines);
@@ -50,6 +60,94 @@ export default function EditModeScreen({ onBack }: Props) {
         setRoutines(prev => prev.filter(r => r.id !== id));
       },
     });
+  }
+
+  async function togglePlan(routineId: string) {
+    if (planFor === routineId) {
+      setPlanFor(null);
+      setPlanItems([]);
+      return;
+    }
+    try {
+      const items = await fetchRoutineExercises(routineId);
+      setPlanFor(routineId);
+      setPlanItems(items);
+    } catch {
+      toast('Failed to load routine plan.');
+    }
+  }
+
+  async function handleAddToPlan(exercise: Exercise) {
+    if (!planFor) return;
+    if (planItems.some(p => p.exercise_id === exercise.id)) return;
+    const nextOrder = planItems.reduce((max, p) => Math.max(max, p.sort_order), 0) + 1;
+    try {
+      const item = await addRoutineExercise(planFor, exercise.id, nextOrder);
+      setPlanItems(prev => [...prev, item]);
+    } catch {
+      toast('Failed to add exercise to plan.');
+    }
+  }
+
+  async function handlePlanReorder(index: number, direction: 'up' | 'down') {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= planItems.length) return;
+    const a = planItems[index];
+    const b = planItems[target];
+    try {
+      await Promise.all([
+        updateRoutineExercise(a.id, { sort_order: b.sort_order }),
+        updateRoutineExercise(b.id, { sort_order: a.sort_order }),
+      ]);
+      setPlanItems(prev => {
+        const next = [...prev];
+        [next[index], next[target]] = [
+          { ...next[target], sort_order: a.sort_order },
+          { ...next[index], sort_order: b.sort_order },
+        ];
+        return next;
+      });
+    } catch {
+      toast('Failed to reorder plan.');
+    }
+  }
+
+  async function handleRemoveFromPlan(id: string) {
+    try {
+      await deleteRoutineExercise(id);
+      setPlanItems(prev => prev.filter(p => p.id !== id));
+    } catch {
+      toast('Failed to remove exercise from plan.');
+    }
+  }
+
+  // Blank clears a target. Sets/reps/rest parse as whole numbers; weight is
+  // entered in the display unit and stored in kg like everywhere else.
+  async function handleTargetChange(
+    item: RoutineExerciseWithExercise,
+    field: 'target_sets' | 'target_reps' | 'target_rest_seconds' | 'target_weight_kg',
+    raw: string,
+  ) {
+    const trimmed = raw.trim();
+    let value: number | null;
+    if (trimmed === '') {
+      value = null;
+    } else if (field === 'target_weight_kg') {
+      const n = parseFloat(trimmed);
+      if (isNaN(n) || n < 0) return;
+      value = displayToKg(n, settings.unit);
+    } else {
+      const n = parseInt(trimmed, 10);
+      if (isNaN(n) || n <= 0) return;
+      value = n;
+    }
+    if (value === item[field]) return;
+    try {
+      await updateRoutineExercise(item.id, { [field]: value });
+      setPlanItems(prev => prev.map(p => (p.id === item.id ? { ...p, [field]: value } : p)));
+    } catch {
+      toast('Failed to save target.');
+    }
   }
 
   async function handleAddRoutine() {
@@ -183,6 +281,13 @@ export default function EditModeScreen({ onBack }: Props) {
                 }}
               />
               <button
+                className="btn-small btn-secondary"
+                style={{ minHeight: 0, padding: '4px 8px' }}
+                onClick={() => togglePlan(routine.id)}
+              >
+                Plan
+              </button>
+              <button
                 className="btn-small"
                 style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: '4px 8px' }}
                 onClick={() => handleDeleteRoutine(routine.id)}
@@ -196,6 +301,84 @@ export default function EditModeScreen({ onBack }: Props) {
                   selected={routine.color}
                   onSelect={c => handleRoutineColourChange(routine.id, c)}
                 />
+              </div>
+            )}
+            {planFor === routine.id && (
+              <div className="plan-editor">
+                {planItems.length === 0 && (
+                  <p className="text-small text-muted">No planned exercises yet. Add below; targets are optional.</p>
+                )}
+                {planItems.map((item, idx) => (
+                  <div key={item.id} className="plan-editor-item">
+                    <div className="edit-row">
+                      <div className="row" style={{ gap: 4 }}>
+                        <button
+                          className="btn-small btn-secondary"
+                          style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
+                          onClick={() => handlePlanReorder(idx, 'up')}
+                          disabled={idx === 0}
+                        >
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          className="btn-small btn-secondary"
+                          style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
+                          onClick={() => handlePlanReorder(idx, 'down')}
+                          disabled={idx === planItems.length - 1}
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                      </div>
+                      <span style={{ flex: 1, fontSize: '0.875rem' }}>{item.exercises?.name ?? 'Unnamed Exercise'}</span>
+                      <button
+                        className="btn-small"
+                        style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: '4px 8px' }}
+                        onClick={() => handleRemoveFromPlan(item.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="plan-targets">
+                      <label>
+                        Sets
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={item.target_sets ?? ''}
+                          onBlur={e => handleTargetChange(item, 'target_sets', e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Reps
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={item.target_reps ?? ''}
+                          onBlur={e => handleTargetChange(item, 'target_reps', e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        {unitLabel(settings.unit)}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          defaultValue={item.target_weight_kg == null ? '' : formatWeight(item.target_weight_kg, settings.unit)}
+                          onBlur={e => handleTargetChange(item, 'target_weight_kg', e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Rest s
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={item.target_rest_seconds ?? ''}
+                          onBlur={e => handleTargetChange(item, 'target_rest_seconds', e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                <ExerciseSearch onSelect={handleAddToPlan} />
               </div>
             )}
           </div>
