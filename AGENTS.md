@@ -72,7 +72,7 @@ The hook merges current sets with the last same-routine session into an ordered 
 - **Styling.** Plain CSS in `src/App.css` with CSS custom properties. No CSS modules, no Tailwind, no styled-components. Inline `style={}` is fine for one-offs.
 - **No comments unless WHY is non-obvious.** Don't restate what code does.
 - **Error handling.** Action errors show inline via local `error` state where the user is looking (e.g. SetLogger). Load/background failures surface through the toast primitive (`hooks/useToast` + `components/Toast`, provider mounted in `main.tsx`), optionally with a retry action. Every data fetch must surface its failure one of these two ways; never swallow.
-- **Confirmations.** Destructive actions use `window.confirm`. Keep it.
+- **Confirmations.** Destructive actions use the in-app `ConfirmSheet` bottom sheet (never `window.confirm`, which renders an origin-labelled browser modal). In-workout set deletion is the exception: delete immediately and offer Undo via toast (`useWorkout.restoreSet` re-upserts the same id).
 - **Imports.** Always import `import type { ... }` for types-only.
 - **Tests.** Pure helpers in `lib/` are unit-tested; UI components are not (deliberate — we use Chrome dev tools for UI verification).
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchLastSession, fetchSessionSets, fetchExerciseHistories } from '../api/sessions';
 import { pushOutbox } from '../lib/outbox';
 import { loadActiveWorkout, updateActiveWorkout } from '../lib/sessionPersistence';
@@ -249,6 +249,32 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     pushOutbox({ table: 'sets', op: 'upsert', rowId: setId, payload: toSetRow(updated) });
   }, [exercises, persistSets]);
 
+  // The Undo toast can fire up to ~6s after the delete, from a closure made
+  // on an old render; a ref gives it the CURRENT exercise state so a delayed
+  // undo cannot clobber sets logged in between, and the duplicate guard makes
+  // a double-tapped Undo a no-op.
+  const exercisesRef = useRef(exercises);
+  useEffect(() => {
+    exercisesRef.current = exercises;
+  }, [exercises]);
+
+  // Undo for a just-deleted set: reinsert with the SAME id, so the outbox
+  // replays delete-then-upsert and the server converges on the restored row.
+  const restoreSet = useCallback((set: WorkoutSet): boolean => {
+    const current = exercisesRef.current;
+    const idx = current.findIndex(e => e.exercise.id === set.exercise_id);
+    if (idx === -1) return false;
+    if (current[idx].sets.some(s => s.id === set.id)) return false;
+    const next = current.map((e, i) =>
+      i === idx ? { ...e, sets: [...e.sets, set].sort((a, b) => a.set_order - b.set_order) } : e,
+    );
+    exercisesRef.current = next;
+    setExercises(next);
+    persistSets(next);
+    pushOutbox({ table: 'sets', op: 'upsert', rowId: set.id, payload: toSetRow(set) });
+    return true;
+  }, [persistSets]);
+
   const deleteSet = useCallback(async (exerciseIndex: number, setId: string) => {
     const next = exercises.map((e, i) =>
       i === exerciseIndex ? { ...e, sets: e.sets.filter(s => s.id !== setId) } : e,
@@ -284,6 +310,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     logSet,
     editSet,
     deleteSet,
+    restoreSet,
     finish,
     loading,
     lastSetId,

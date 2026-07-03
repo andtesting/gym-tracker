@@ -6,6 +6,7 @@ import { fetchMuscleGroups, createMuscleGroup, updateMuscleGroup, deleteMuscleGr
 import type { Routine, Exercise, MuscleGroup } from '../types';
 import ColourPicker from './ColourPicker';
 import MuscleGroupPicker from './MuscleGroupPicker';
+import ConfirmSheet from './ConfirmSheet';
 
 interface Props {
   onBack: () => void;
@@ -19,6 +20,7 @@ export default function EditModeScreen({ onBack }: Props) {
   const [musclePickerFor, setMusclePickerFor] = useState<string | null>(null);
   const [newRoutineName, setNewRoutineName] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
+  const [confirm, setConfirm] = useState<{ title: string; message: string; label: string; action: () => void } | null>(null);
 
   useEffect(() => {
     fetchRoutines().then(setRoutines);
@@ -37,10 +39,17 @@ export default function EditModeScreen({ onBack }: Props) {
     setColourPickerFor(null);
   }
 
-  async function handleDeleteRoutine(id: string) {
-    if (!window.confirm('Delete routine? Sessions using it will show as Unnamed Routine.')) return;
-    await deleteRoutine(id);
-    setRoutines(prev => prev.filter(r => r.id !== id));
+  function handleDeleteRoutine(id: string) {
+    setConfirm({
+      title: 'Delete routine?',
+      message: 'Sessions using it will show as Unnamed Routine.',
+      label: 'Delete routine',
+      action: async () => {
+        setConfirm(null);
+        await deleteRoutine(id);
+        setRoutines(prev => prev.filter(r => r.id !== id));
+      },
+    });
   }
 
   async function handleAddRoutine() {
@@ -67,10 +76,17 @@ export default function EditModeScreen({ onBack }: Props) {
     setMusclePickerFor(null);
   }
 
-  async function handleDeleteExercise(id: string) {
-    if (!window.confirm('Delete exercise? Sets using it will show as Unnamed Exercise.')) return;
-    await deleteExercise(id);
-    setExercises(prev => prev.filter(e => e.id !== id));
+  function handleDeleteExercise(id: string) {
+    setConfirm({
+      title: 'Delete exercise?',
+      message: 'Sets using it will show as Unnamed Exercise.',
+      label: 'Delete exercise',
+      action: async () => {
+        setConfirm(null);
+        await deleteExercise(id);
+        setExercises(prev => prev.filter(e => e.id !== id));
+      },
+    });
   }
 
   async function handleGroupNameChange(id: string, name: string) {
@@ -99,15 +115,22 @@ export default function EditModeScreen({ onBack }: Props) {
     );
   }
 
-  async function handleDeleteGroup(id: string) {
-    if (!window.confirm('Delete group? Exercises will move to Other.')) return;
-    await deleteMuscleGroup(id);
-    setGroups(prev => prev.filter(g => g.id !== id));
-    setExercises(prev =>
-      prev.map(e =>
-        e.muscle_group_id === id ? { ...e, muscle_group_id: null, muscle_groups: null } : e,
-      ),
-    );
+  function handleDeleteGroup(id: string) {
+    setConfirm({
+      title: 'Delete group?',
+      message: 'Exercises will move to Other.',
+      label: 'Delete group',
+      action: async () => {
+        setConfirm(null);
+        await deleteMuscleGroup(id);
+        setGroups(prev => prev.filter(g => g.id !== id));
+        setExercises(prev =>
+          prev.map(e =>
+            e.muscle_group_id === id ? { ...e, muscle_group_id: null, muscle_groups: null } : e,
+          ),
+        );
+      },
+    });
   }
 
   async function handleAddGroup() {
@@ -347,6 +370,15 @@ export default function EditModeScreen({ onBack }: Props) {
           <button className="btn-primary btn-small" onClick={handleAddGroup}>Add</button>
         </div>
       </div>
+      {confirm && (
+        <ConfirmSheet
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.label}
+          onConfirm={confirm.action}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   );
 }
