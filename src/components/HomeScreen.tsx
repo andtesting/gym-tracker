@@ -111,6 +111,7 @@ export default function HomeScreen({ onNavigate }: Props) {
       session_notes: set.sessions.notes,
       rpe: set.rpe,
       set_notes: set.notes,
+      group_id: set.group_id,
     }));
 
     const content = format === 'csv' ? toCSV(rows) : toJSON(rows);

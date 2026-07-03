@@ -17,6 +17,10 @@ export interface ActiveExercise {
   // Routine template row for this exercise, when one exists: target sets/reps/
   // weight for the plan view and target_rest_seconds for the rest countdown.
   template: RoutineExercise | null;
+  // Superset membership (AND-10): exercises sharing a groupId are one
+  // grouping; sets inherit it at log time. Derived from logged sets on
+  // resume, so a link made before any set is logged does not survive a kill.
+  groupId: string | null;
 }
 
 interface UseWorkoutOptions {
@@ -38,6 +42,7 @@ function toSetRow(set: WorkoutSet): Record<string, unknown> {
     rest_seconds: set.rest_seconds,
     rpe: set.rpe ?? null,
     notes: set.notes ?? null,
+    group_id: set.group_id ?? null,
     started_at: set.started_at,
     completed_at: set.completed_at,
     created_at: set.created_at,
@@ -99,12 +104,17 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
             sets: [],
             histories: [],
             template: entry.template,
+            groupId: null,
           });
           exerciseOrder.push(entry.exercise.id);
         }
         for (const set of currentSets) {
           if (!set.exercise_id) continue;
-          exerciseMap.get(set.exercise_id)?.sets.push(set);
+          const entry = exerciseMap.get(set.exercise_id);
+          if (!entry) continue;
+          entry.sets.push(set);
+          // Superset membership survives resume through the sets themselves.
+          if (set.group_id) entry.groupId = set.group_id;
         }
 
         // Cross-routine history (AND-25/31): prior performances of each exercise
@@ -158,7 +168,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
         setActiveIndex(existing);
         return prev;
       }
-      const next = [...prev, { exercise, sets: [], histories: [], template: null }];
+      const next = [...prev, { exercise, sets: [], histories: [], template: null, groupId: null }];
       // Lazy-load history for the newly added exercise.
       fetchExerciseHistories([exercise.id])
         .then(map => {
@@ -189,6 +199,46 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     setActiveIndex(null);
   }, []);
 
+  // Link/unlink an exercise with the one above it (AND-10). Linking joins the
+  // previous exercise's group (or mints one); unlinking removes only this
+  // exercise, dissolving the group if a single member remains. Already-logged
+  // sets of affected exercises are re-stamped so the session stays coherent —
+  // grouping is a property of the session, not of when the user tapped Link.
+  const toggleSuperset = useCallback((index: number) => {
+    if (index <= 0 || index >= exercises.length) return;
+    const prevEx = exercises[index - 1];
+    const cur = exercises[index];
+    const linked = cur.groupId !== null && cur.groupId === prevEx.groupId;
+
+    let next: ActiveExercise[];
+    if (linked) {
+      next = exercises.map((e, i) => (i === index ? { ...e, groupId: null } : e));
+      const remaining = next.filter(e => e.groupId === cur.groupId);
+      if (remaining.length === 1) {
+        next = next.map(e => (e.groupId === cur.groupId ? { ...e, groupId: null } : e));
+      }
+    } else {
+      const gid = prevEx.groupId ?? crypto.randomUUID();
+      next = exercises.map((e, i) =>
+        i === index - 1 || i === index ? { ...e, groupId: gid } : e,
+      );
+    }
+
+    next = next.map(e => {
+      if (e.sets.length === 0 || e.sets.every(s => (s.group_id ?? null) === e.groupId)) return e;
+      const sets = e.sets.map(s => {
+        if ((s.group_id ?? null) === e.groupId) return s;
+        const updated = { ...s, group_id: e.groupId };
+        pushOutbox({ table: 'sets', op: 'upsert', rowId: s.id, payload: toSetRow(updated) });
+        return updated;
+      });
+      return { ...e, sets };
+    });
+
+    setExercises(next);
+    persistSets(next);
+  }, [exercises, persistSets]);
+
   // Mutations are local-first (AND-8): state and the persisted record update
   // synchronously and the server write goes through the outbox, so logging
   // never waits on the network. The async signatures are kept for callers.
@@ -216,6 +266,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       weight_kg: data.weight_kg,
       rpe: data.rpe,
       notes: null,
+      group_id: exercise.groupId,
       set_duration_seconds: data.set_duration_seconds,
       rest_seconds: restSeconds,
       started_at: data.started_at,
@@ -314,6 +365,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     addExercise,
     removeExercise,
     reorderExercise,
+    toggleSuperset,
     logSet,
     editSet,
     deleteSet,

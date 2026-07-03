@@ -64,6 +64,8 @@ export interface WorkoutSet {
   rpe: number | null;
   // Subjective per-set context ("left shoulder twinge"); unreconstructable later.
   notes: string | null;
+  // Sets sharing a group_id belong to one superset/circuit grouping (AND-10).
+  group_id: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;

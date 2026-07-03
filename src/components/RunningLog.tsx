@@ -6,6 +6,7 @@ import { formatWeight, unitHeader } from '../lib/units';
 interface ExerciseEntry {
   exercise: Exercise;
   sets: WorkoutSet[];
+  groupId?: string | null;
 }
 
 interface Props {
@@ -34,6 +35,9 @@ export default function RunningLog({ exercises, activeIndex, onSelectExercise }:
           >
             <strong>{entry.exercise.name}</strong>
             <span className="text-small text-muted"> ({entry.sets.length} sets)</span>
+            {entry.groupId && (
+              <span className="text-small" style={{ color: 'var(--color-accent)' }}> · superset</span>
+            )}
             <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: '44px 1fr 1fr 1fr' }}>
               <span>#</span><span>Reps</span><span>{unitHeader(settings.unit)}</span><span>Rest</span>
             </div>

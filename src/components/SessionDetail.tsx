@@ -7,6 +7,7 @@ import { formatRest } from '../lib/timer';
 import { useSettings } from '../hooks/useSettings';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
 import { normalizeRpe } from '../lib/rpe';
+import { buildDisplayGroups } from '../lib/setGroups';
 import ExerciseSearch from './ExerciseSearch';
 import ConfirmSheet from './ConfirmSheet';
 import { useToast } from '../hooks/useToast';
@@ -16,10 +17,6 @@ interface Props {
   onBack: () => void;
 }
 
-interface ExerciseGroup {
-  name: string;
-  sets: SetWithExercise[];
-}
 
 export default function SessionDetail({ sessionId, onBack }: Props) {
   const [sets, setSets] = useState<SetWithExercise[]>([]);
@@ -61,16 +58,9 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     return () => { cancelled = true; };
   }, [sessionId, toast]);
 
-  const grouped: ExerciseGroup[] = [];
-  for (const set of sets) {
-    const name = set.exercises?.name ?? 'Unnamed Exercise';
-    const last = grouped[grouped.length - 1];
-    if (last && last.name === name) {
-      last.sets.push(set);
-    } else {
-      grouped.push({ name, sets: [set] });
-    }
-  }
+  // Consecutive same-exercise sets group as before; consecutive sets sharing
+  // a group_id merge into one superset group with per-row labels (AND-10).
+  const grouped = buildDisplayGroups(sets);
 
   function handleStartEdit() {
     const initial: Record<string, { reps: string; weight_kg: string; rpe: string; notes: string }> = {};
@@ -300,7 +290,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
           {group.sets.map((set, j) => (
             <div key={set.id}>
             <div className="set-row" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 52px 40px' : '50px 1fr 1fr 44px 1fr' }}>
-              <span>{j + 1}</span>
+              <span>{group.labels ? group.labels[j] : j + 1}</span>
               {editing ? (
                 <>
                   <input

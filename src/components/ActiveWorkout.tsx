@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
+import { Clock, ChevronUp, ChevronDown, Link2 } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { fetchSession } from '../api/sessions';
@@ -273,11 +273,20 @@ export default function ActiveWorkout({
                     (best, s) => !best || s.weight_kg > best.weight_kg ? s : best, null,
                   );
                 const fromOther = recent && recent.session.routine_id !== routineId;
+                const linkedWithPrev =
+                  i > 0 && entry.groupId !== null && entry.groupId === workout.exercises[i - 1].groupId;
                 return (
                   <div
                     key={entry.exercise.id}
                     className="card"
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 0, padding: 10 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 0,
+                      padding: 10,
+                      borderLeft: entry.groupId ? '3px solid var(--color-accent)' : undefined,
+                    }}
                   >
                     <button
                       onClick={() => switchExercise(i)}
@@ -330,6 +339,21 @@ export default function ActiveWorkout({
                       })()}
                     </button>
                     <div className="row" style={{ gap: 2, flexShrink: 0 }}>
+                      {i > 0 && (
+                        <button
+                          className="pager-btn"
+                          onClick={() => workout.toggleSuperset(i)}
+                          aria-label={linkedWithPrev ? 'Unlink superset' : 'Superset with previous'}
+                          aria-pressed={linkedWithPrev}
+                          style={{
+                            minHeight: 32,
+                            padding: 4,
+                            color: linkedWithPrev ? 'var(--color-accent)' : undefined,
+                          }}
+                        >
+                          <Link2 size={16} />
+                        </button>
+                      )}
                       <button
                         className="pager-btn"
                         onClick={() => workout.reorderExercise(i, 'up')}
