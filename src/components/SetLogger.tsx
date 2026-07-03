@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
 import LastSessionRef from './LastSessionRef';
+import QuickCapture from './QuickCapture';
 
 // Most sets repeat (or barely nudge) the previous set's numbers, so the inputs
 // prefill rather than start empty (AND-42): previous set of this exercise
@@ -252,28 +253,18 @@ export default function SetLogger({
             disabled={submitting}
             style={{ background: 'var(--color-success)' }}
           >
-            {submitting ? 'Saving…' : retroactive ? 'Add Set' : 'Log Set'}
+            {submitting
+              ? 'Saving…'
+              : `${retroactive ? 'Add Set' : 'Log Set'}${reps && weight ? ` · ${reps} × ${weight} kg` : ''}`}
           </button>
         )}
 
-        <div className="row">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={reps}
-            onChange={e => setReps(e.target.value)}
-            placeholder="Reps"
-            style={{ flex: 1 }}
-          />
-          <input
-            type="text"
-            inputMode="decimal"
-            value={weight}
-            onChange={e => setWeight(e.target.value)}
-            placeholder="Weight (kg)"
-            style={{ flex: 1 }}
-          />
-        </div>
+        <QuickCapture
+          reps={reps}
+          weight={weight}
+          onRepsChange={setReps}
+          onWeightChange={setWeight}
+        />
       </div>
     </div>
   );
