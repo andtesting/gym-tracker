@@ -1,0 +1,15 @@
+{
+  "batch_kind": "daily",
+  "workouts": [
+    {
+      "source": "curl-fixture",
+      "workout_type": "Traditional Strength Training",
+      "started_at": "2026-07-01T06:02:11+10:00"
+    }
+  ],
+  "samples": [
+    { "sample_type": "body_mass", "source": "curl-fixture", "measured_at": "2026-07-01T07:12:00+10:00", "value": 82.4 },
+    { "sample_type": "steps", "source": "curl-fixture", "measured_at": "2026-07-01T00:00:00+10:00", "value": 9000 },
+    { "sample_type": "resting_hr", "source": "curl-fixture", "measured_at": "2026-07-01T00:00:00+10:00", "value": "fifty-two" }
+  ]
+}

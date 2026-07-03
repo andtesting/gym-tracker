@@ -1,0 +1,27 @@
+{
+  "batch_kind": "daily",
+  "workouts": [
+    {
+      "source": "curl-fixture",
+      "workout_type": "Traditional Strength Training",
+      "started_at": "2026-07-01T06:02:11+10:00",
+      "ended_at": "2026-07-01T06:58:40+10:00",
+      "active_energy_kcal": 412,
+      "hr_series": [
+        { "t": "2026-07-01T06:02:15+10:00", "bpm": 91 },
+        { "t": "2026-07-01T06:02:20+10:00", "bpm": 95 },
+        { "t": "2026-07-01T06:05:40+10:00", "bpm": 132 },
+        { "t": "2026-07-01T06:31:02+10:00", "bpm": 154 },
+        { "t": "2026-07-01T06:58:35+10:00", "bpm": 118 }
+      ]
+    }
+  ],
+  "samples": [
+    { "sample_type": "body_mass", "source": "curl-fixture", "measured_at": "2026-07-01T07:12:00+10:00", "value": 82.4 },
+    { "sample_type": "resting_hr", "source": "curl-fixture", "measured_at": "2026-07-01T00:00:00+10:00", "value": 52 },
+    { "sample_type": "hrv_sdnn", "source": "curl-fixture", "measured_at": "2026-07-01T05:40:00+10:00", "value": 68 },
+    { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-06-30T22:41:00+10:00", "ended_at": "2026-07-01T01:10:00+10:00", "value": 149, "detail": "core" },
+    { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-07-01T01:10:00+10:00", "ended_at": "2026-07-01T02:05:00+10:00", "value": 55, "detail": "deep" },
+    { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-07-01T02:05:00+10:00", "ended_at": "2026-07-01T05:52:00+10:00", "value": 227, "detail": "rem" }
+  ]
+}
