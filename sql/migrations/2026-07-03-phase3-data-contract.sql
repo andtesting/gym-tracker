@@ -10,6 +10,10 @@
 alter table sessions add column if not exists source text not null default 'gym-tracker-pwa';
 
 -- Soft delete: Layer 2 must never silently lose rows it already processed.
+-- IMPORTANT: the same PR that starts WRITING deleted_at must add
+-- .is('deleted_at', null) to every set-reading query (fetchSessionSets,
+-- fetchExerciseHistories, fetchExerciseTrends, fetchExportSets keeps ALL
+-- rows deliberately) or soft-deleted sets reappear in history and stats.
 alter table sets add column if not exists deleted_at timestamptz;
 
 -- Effort context (RPE 1-10, quarter steps allowed).

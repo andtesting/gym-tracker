@@ -14,7 +14,7 @@ create table muscle_groups (
   name text not null,
   sort_order integer not null default 0,
   created_at timestamptz default now(),
-  unique (user_id, name)
+  constraint muscle_groups_user_name_key unique (user_id, name)
 );
 
 -- Routines: user-defined workout labels (e.g. "back A", "chest B")
@@ -24,7 +24,7 @@ create table routines (
   name text not null,
   color text default '#2563eb',
   created_at timestamptz default now(),
-  unique (user_id, name)
+  constraint routines_user_name_key unique (user_id, name)
 );
 
 -- Exercises: built organically from usage
@@ -37,7 +37,7 @@ create table exercises (
   is_bodyweight boolean not null default false,
   secondary_muscle_group_ids uuid[] not null default '{}',
   created_at timestamptz default now(),
-  unique (user_id, name)
+  constraint exercises_user_name_key unique (user_id, name)
 );
 
 -- Sessions: one per workout. `source` records the capture surface (Layer 2
