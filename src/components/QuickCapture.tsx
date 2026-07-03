@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Delete } from 'lucide-react';
 
 interface Props {
@@ -23,6 +23,13 @@ export default function QuickCapture({ reps, weight, onRepsChange, onWeightChang
   // Calculator semantics: the first digit after opening a field replaces the
   // prefilled value instead of appending to it.
   const [freshEntry, setFreshEntry] = useState(false);
+  const padRef = useRef<HTMLDivElement>(null);
+
+  // No input focus means the browser never auto-scrolls the pad into view;
+  // on short viewports it would open underneath the fixed bottom bar.
+  useEffect(() => {
+    if (activeField) padRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activeField]);
 
   const value = activeField === 'reps' ? reps : weight;
   const setValue = activeField === 'reps' ? onRepsChange : onWeightChange;
@@ -38,7 +45,10 @@ export default function QuickCapture({ reps, weight, onRepsChange, onWeightChang
 
   function pressDigit(digit: string) {
     if (!activeField) return;
-    const base = freshEntry ? '' : value;
+    // A bare leading zero is replaced rather than extended, so "0" then "8"
+    // reads 8, not 08.
+    const current = freshEntry ? '' : value;
+    const base = current === '0' && digit !== '.' ? '' : current;
     setFreshEntry(false);
     if (digit === '.') {
       if (activeField === 'reps' || base.includes('.')) return;
@@ -99,7 +109,7 @@ export default function QuickCapture({ reps, weight, onRepsChange, onWeightChang
       </div>
 
       {activeField && (
-        <div className="numpad">
+        <div className="numpad" ref={padRef}>
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'].map(key => (
             <button
               key={key}

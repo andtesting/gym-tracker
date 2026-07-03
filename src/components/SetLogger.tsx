@@ -81,7 +81,10 @@ export default function SetLogger({
     if (submitting) return;
     const r = parseInt(reps, 10);
     const w = parseFloat(weight);
-    if (isNaN(r) || isNaN(w) || r <= 0 || w < 0) return;
+    if (isNaN(r) || isNaN(w) || r <= 0 || w < 0) {
+      setError('Enter reps and weight first.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -259,7 +262,10 @@ export default function SetLogger({
           </button>
         )}
 
+        {/* Keyed on the logged count so each logged set remounts the pad:
+            closes it and restores replace-on-first-digit for the next set. */}
         <QuickCapture
+          key={loggedSets.length}
           reps={reps}
           weight={weight}
           onRepsChange={setReps}
