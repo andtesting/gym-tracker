@@ -4,6 +4,21 @@ import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
 import LastSessionRef from './LastSessionRef';
 
+// Most sets repeat (or barely nudge) the previous set's numbers, so the inputs
+// prefill rather than start empty (AND-42): previous set of this exercise
+// today, else the corresponding set from the most recent prior session.
+function prefillValues(
+  loggedSets: WorkoutSet[],
+  histories: ExerciseHistoryEntry[],
+): { reps: string; weight: string } | null {
+  const last = loggedSets[loggedSets.length - 1];
+  if (last) return { reps: String(last.reps), weight: String(last.weight_kg) };
+  const prior = histories[0];
+  const s = prior ? (prior.sets[loggedSets.length] ?? prior.sets[prior.sets.length - 1]) : undefined;
+  if (s) return { reps: String(s.reps), weight: String(s.weight_kg) };
+  return null;
+}
+
 interface Props {
   exercise: Exercise;
   loggedSets: WorkoutSet[];
@@ -33,8 +48,9 @@ export default function SetLogger({
   onRemoveExercise,
   onBackToPlan,
 }: Props) {
-  const [reps, setReps] = useState('');
-  const [weight, setWeight] = useState('');
+  const [initialPrefill] = useState(() => prefillValues(loggedSets, histories));
+  const [reps, setReps] = useState(initialPrefill?.reps ?? '');
+  const [weight, setWeight] = useState(initialPrefill?.weight ?? '');
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');
@@ -43,6 +59,22 @@ export default function SetLogger({
   const [histIndex, setHistIndex] = useState(0);
 
   const selectedHistory = histories[histIndex] ?? null;
+
+  // Histories load lazily for freshly added exercises; when they first arrive,
+  // apply the prefill if the user hasn't typed anything yet. Render-time state
+  // adjustment (not an effect) per the "state from previous render" pattern;
+  // one-shot so a deliberately cleared field is never overwritten afterwards.
+  const [prefillApplied, setPrefillApplied] = useState(histories.length > 0);
+  if (!prefillApplied && histories.length > 0) {
+    setPrefillApplied(true);
+    if (reps === '' && weight === '') {
+      const p = prefillValues(loggedSets, histories);
+      if (p) {
+        setReps(p.reps);
+        setWeight(p.weight);
+      }
+    }
+  }
 
   async function handleLog() {
     if (submitting) return;
@@ -53,8 +85,10 @@ export default function SetLogger({
     setError(null);
     try {
       await onLogSet({ reps: r, weight_kg: w });
-      setReps('');
-      setWeight('');
+      // Keep the just-logged values as the next set's prefill (repeat sets are
+      // the majority case), normalised through the parsers.
+      setReps(String(r));
+      setWeight(String(w));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to log set');
     } finally {

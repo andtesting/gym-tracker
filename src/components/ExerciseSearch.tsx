@@ -4,6 +4,7 @@ import { fetchMuscleGroups, createMuscleGroup } from '../api/muscleGroups';
 import { searchExercises } from '../lib/search';
 import type { Exercise, MuscleGroup } from '../types';
 import MuscleGroupPicker from './MuscleGroupPicker';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   onSelect: (exercise: Exercise) => void;
@@ -18,13 +19,16 @@ export default function ExerciseSearch({ onSelect, primaryMuscleGroupId }: Props
   const [creating, setCreating] = useState(false);
   const [pendingName, setPendingName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
-    Promise.all([fetchExercises(), fetchMuscleGroups()]).then(([ex, mg]) => {
-      setAllExercises(ex);
-      setGroups(mg);
-    });
-  }, []);
+    Promise.all([fetchExercises(), fetchMuscleGroups()])
+      .then(([ex, mg]) => {
+        setAllExercises(ex);
+        setGroups(mg);
+      })
+      .catch(() => toast('Failed to load exercises.'));
+  }, [toast]);
 
   const trimmedQuery = query.trim();
   const results = searchExercises(allExercises, query);

@@ -4,6 +4,7 @@ import { fetchExerciseTrends } from '../api/sessions';
 import { fetchMuscleGroups } from '../api/muscleGroups';
 import type { Exercise, MuscleGroup } from '../types';
 import TrendsChart from './TrendsChart';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   onBack: () => void;
@@ -21,13 +22,16 @@ export default function TrendsView({ onBack }: Props) {
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [mode, setMode] = useState<'weight' | 'reps'>('weight');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
-    Promise.all([fetchExercises(), fetchMuscleGroups()]).then(([ex, mg]) => {
-      setExercises(ex);
-      setGroups(mg);
-    });
-  }, []);
+    Promise.all([fetchExercises(), fetchMuscleGroups()])
+      .then(([ex, mg]) => {
+        setExercises(ex);
+        setGroups(mg);
+      })
+      .catch(() => toast('Failed to load exercises.'));
+  }, [toast]);
 
   async function handleSelect(exerciseId: string) {
     setSelectedId(exerciseId);
@@ -41,6 +45,7 @@ export default function TrendsView({ onBack }: Props) {
       setTrendData(data);
     } catch {
       setTrendData([]);
+      toast('Failed to load trend data.', { label: 'Retry', onClick: () => handleSelect(exerciseId) });
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { MuscleGroup } from '../types';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   groups: MuscleGroup[];
@@ -12,6 +13,7 @@ export default function MuscleGroupPicker({ groups, selected, onSelect, onCreate
   const [showInput, setShowInput] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
 
   async function handleAdd() {
     const trimmed = newName.trim();
@@ -23,6 +25,7 @@ export default function MuscleGroupPicker({ groups, selected, onSelect, onCreate
       setNewName('');
       setShowInput(false);
     } catch {
+      toast('Failed to create muscle group.');
     } finally {
       setCreating(false);
     }
