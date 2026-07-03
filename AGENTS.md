@@ -31,7 +31,8 @@ sql/schema.sql  Single-file schema, RLS policies, seed data. Run in Supabase SQL
 tests/lib/      Vitest unit tests (pure helpers only — no component or integration tests yet).
 docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirements.md) and
                 product plans: DEEP_REVIEW_AND_V2_PLAN.md (Layer 1 roadmap), LAYER2_PLAN.md
-                (data platform + AI coach).
+                (data platform + AI coach), HEALTH_SYNC_PLAN.md (Apple Health ingestion via
+                DIY iOS Shortcut, supersedes the buy-HAE step).
 ```
 
 ## Data model (Supabase)
