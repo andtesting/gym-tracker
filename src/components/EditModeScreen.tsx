@@ -79,7 +79,13 @@ export default function EditModeScreen({ onBack }: Props) {
 
   async function handleAddToPlan(exercise: Exercise) {
     if (!planFor) return;
-    if (planItems.some(p => p.exercise_id === exercise.id)) return;
+    // ExerciseSearch can mint a brand-new exercise; reflect it in the
+    // Exercises section below without a remount.
+    setExercises(prev => (prev.some(e => e.id === exercise.id) ? prev : [...prev, exercise]));
+    if (planItems.some(p => p.exercise_id === exercise.id)) {
+      toast('Already in this plan.');
+      return;
+    }
     const nextOrder = planItems.reduce((max, p) => Math.max(max, p.sort_order), 0) + 1;
     try {
       const item = await addRoutineExercise(planFor, exercise.id, nextOrder);
@@ -89,24 +95,22 @@ export default function EditModeScreen({ onBack }: Props) {
     }
   }
 
+  // Reindex the whole list from array position instead of swapping the two
+  // stored values: rows written by outside actors (the Layer 2 coach) can
+  // carry duplicate sort_orders, and a swap of equal values silently reverts.
   async function handlePlanReorder(index: number, direction: 'up' | 'down') {
     const target = direction === 'up' ? index - 1 : index + 1;
     if (target < 0 || target >= planItems.length) return;
-    const a = planItems[index];
-    const b = planItems[target];
+    const next = [...planItems];
+    [next[index], next[target]] = [next[target], next[index]];
+    const reindexed = next.map((p, i) => ({ ...p, sort_order: i + 1 }));
     try {
-      await Promise.all([
-        updateRoutineExercise(a.id, { sort_order: b.sort_order }),
-        updateRoutineExercise(b.id, { sort_order: a.sort_order }),
-      ]);
-      setPlanItems(prev => {
-        const next = [...prev];
-        [next[index], next[target]] = [
-          { ...next[target], sort_order: a.sort_order },
-          { ...next[index], sort_order: b.sort_order },
-        ];
-        return next;
-      });
+      await Promise.all(
+        reindexed
+          .filter((p, i) => p.sort_order !== next[i].sort_order)
+          .map(p => updateRoutineExercise(p.id, { sort_order: p.sort_order })),
+      );
+      setPlanItems(reindexed);
     } catch {
       toast('Failed to reorder plan.');
     }
@@ -134,11 +138,17 @@ export default function EditModeScreen({ onBack }: Props) {
       value = null;
     } else if (field === 'target_weight_kg') {
       const n = parseFloat(trimmed);
-      if (isNaN(n) || n < 0) return;
+      if (isNaN(n) || n < 0) {
+        toast('Targets must be numbers.');
+        return;
+      }
       value = displayToKg(n, settings.unit);
     } else {
       const n = parseInt(trimmed, 10);
-      if (isNaN(n) || n <= 0) return;
+      if (isNaN(n) || n <= 0) {
+        toast('Targets must be positive whole numbers.');
+        return;
+      }
       value = n;
     }
     if (value === item[field]) return;

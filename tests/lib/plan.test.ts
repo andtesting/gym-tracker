@@ -84,4 +84,9 @@ describe('buildPlan', () => {
   it('empty everything gives an empty plan', () => {
     expect(buildPlan([], [], [])).toEqual([]);
   });
+
+  it('orders template entries by sort_order even when the input array is unsorted', () => {
+    const plan = buildPlan([], [makeTemplate('b', 2), makeTemplate('a', 1)], []);
+    expect(plan.map(p => p.exercise.id)).toEqual(['a', 'b']);
+  });
 });

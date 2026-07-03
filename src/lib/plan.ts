@@ -19,8 +19,11 @@ export function buildPlan(
   templates: RoutineExerciseWithExercise[],
   lastSessionSets: SetWithExercise[],
 ): PlanEntry[] {
+  // Defensive: correctness of source-2 ordering must not depend on the
+  // caller (API orders by sort_order, but cached copies might not).
+  const sortedTemplates = [...templates].sort((a, b) => a.sort_order - b.sort_order);
   const templateByExercise = new Map<string, RoutineExercise>();
-  for (const t of templates) templateByExercise.set(t.exercise_id, t);
+  for (const t of sortedTemplates) templateByExercise.set(t.exercise_id, t);
 
   const entries = new Map<string, PlanEntry>();
 
@@ -32,7 +35,7 @@ export function buildPlan(
     });
   }
 
-  for (const t of templates) {
+  for (const t of sortedTemplates) {
     if (!t.exercises || entries.has(t.exercise_id)) continue;
     entries.set(t.exercise_id, { exercise: t.exercises, template: t });
   }
