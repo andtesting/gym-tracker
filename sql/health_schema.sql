@@ -124,6 +124,9 @@ begin
 
   v_rejected := coalesce((p_batch->>'rejected')::int, 0);
 
+  -- Duplicate keys WITHIN one batch: separate INSERTs, so the second upserts
+  -- over the first (last write wins) and the plain counts overstate distinct
+  -- rows; *_new counts stay honest. Acceptable at n=1.
   for w in select * from jsonb_array_elements(coalesce(p_batch->'workouts', '[]'::jsonb)) loop
     insert into health.workouts
       (user_id, source, workout_type, started_at, ended_at, active_energy_kcal, avg_hr, max_hr, hr_series)
@@ -136,7 +139,7 @@ begin
       (w->>'active_energy_kcal')::numeric,
       (w->>'avg_hr')::numeric,
       (w->>'max_hr')::numeric,
-      w->'hr_series'
+      nullif(w->'hr_series', 'null'::jsonb)   -- JSON null would defeat `hr_series is null` reads
     )
     on conflict (user_id, source, started_at) do update set
       workout_type = excluded.workout_type,
