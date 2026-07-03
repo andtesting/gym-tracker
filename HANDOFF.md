@@ -2,38 +2,27 @@
 
 Snapshot of where the project is. Replace every session, never append.
 
-## Current state — 2026-05-24
+## Current state — 2026-07-03
 
-Active branch: `fix/and-10-pwa-loading-stuck` (already merged AND-10 PWA fix).
+Branch: `main` (clean). Housekeeping changes sit on `chore/verify-setup-docs` (PR open, unmerged).
 
-Recently shipped (last few PRs):
+Shipped this session (PR #12, merged to `main`, auto-deployed to Pages):
 
-- AND-10: PWA stuck on "Loading..." on iOS home screen — fixed
-- AND-20: retroactive add preserves reps/weight between adds
-- AND-21: trends Y-axis labels
-- AND-16, AND-17: set timestamps and retroactive session edit
+- **AND-37** — rest model flipped from "rest after this set" to "rest **before** this set" so the first set of a new exercise shows its rest. Touched capture (`ActiveWorkout`), storage (`useWorkout.logSet` + `createSet`), and 5 display sites. Removed dead `updateSetRest`/`recordRest`.
+- **AND-38** — heatmap bucketed by UTC date while cells are local; added unit-tested `src/lib/date.ts` `localDateKey()`, used in `ActivityHeatmap` + `HomeScreen`.
 
-## In flight
+Both went through an adversarial review pass; 3 findings fixed (migration idempotency guard, log-set ref race, fetch-window skew). Build/lint/tests green (34/34).
 
-User raised four live-workout UX issues during real gym use. Logged as a new batch this session; see Linear team `Andy C` for AND-22 → AND-25 (and any AND-26+ found during audit).
+## Next steps (do these first)
 
-1. Active workout shows only one prior session and not all exercises from it. Need multi-session history visible during the live workout, plus ability to plan exercises upfront. (AND-22)
-2. No way to edit a typo'd set during the live workout. Only `SessionDetail` has edit. (AND-23)
-3. No way to create a brand-new retroactive session (currently can only edit existing sessions). Needed for "forgot phone" days. (AND-24)
-4. Exercise history during active workout is filtered to the current routine, so the same exercise across different routines shows no history. (AND-25)
+1. **Run the AND-37 migration — NOT yet applied.** `sql/migrations/2026-07-02-rest-before-set.sql`. Until it runs, historical rest displays are shifted by one (new workouts are already correct). It's idempotent + guarded. Two ways:
+   - Supabase MCP is now configured (hosted HTTP, OAuth, project-scoped, `database,docs`, **write-capable**). Run `/mcp` → authenticate `supabase` → then Claude can apply it and verify.
+   - Or paste it into the Supabase SQL Editor yourself (back up `sets` first).
+   - After it's applied, consider re-adding the MCP with `&read_only=true` (or revoke the OAuth grant).
 
-## Next steps
-
-1. Finish exploratory Chrome audit for any AND-26+ issues.
-2. Confirm Linear issues for all four user-reported items.
-3. Implementation order (lowest-dependency first):
-   - AND-25 cross-routine history (small API change in `fetchLastSession` flow)
-   - AND-23 live edit/delete sets (extend `SetLogger` + reuse `updateSet`/`deleteSet`)
-   - AND-22 multi-session history viewer (new component + API for last N sessions)
-   - AND-24 retroactive session create (new "Log past workout" entry from home screen)
-4. Verify each flow in Chrome before moving to the next.
+2. **UI verification is still blindspotted.** No Supabase creds were available this session, so AND-37/38 were verified via build/lint/unit tests only, not a live Chrome run. `.env` now exists locally (public anon key, gitignored). To let Claude self-verify the UI next time: create an RLS-isolated test user in the Supabase dashboard and drop its email/password into `.secrets.local.json` (see `.secrets.local.example.json`). Manual check worth doing regardless: log 3 sets on exercise A → switch to B → rest → log B's first set (should show its rest; A's first set stays blank); confirm an early-AM workout colours the correct local day.
 
 ## Notes
 
-- All four issues touch `ActiveWorkout` / `useWorkout` / `SetLogger` / `LastSessionRef`. Plan them together — one round trip through that code path beats four.
-- Don't forget to update `sql/schema.sql` if any table needs new columns. None expected for this batch; everything is composition of existing data.
+- Linear AND-37 and AND-38 are marked Done.
+- Export `date` column still uses the UTC split (deliberately out of scope; it carries full `started_at` too). Flag as a follow-up if the export day ever matters.

@@ -46,6 +46,8 @@ sets          (id, user_id, session_id, exercise_id, set_order, set_type, reps, 
 - `set_type` is `'warmup' | 'working'`. The warmup/working UI was removed (AND-29); new sets always default to `'working'`. The column is retained for historical data and export.
 - **RLS is per-user (AND-35).** Every table has a `user_id uuid not null default auth.uid()` column and an owner-only policy (`user_id = auth.uid()`). App inserts don't set `user_id` — the column default fills it from the authenticated caller, and RLS auto-scopes all reads. `unique` constraints on names are per-user (`unique(user_id, name)`). New users start with an empty library and build it via the app. Public sign-ups are disabled in the Supabase dashboard. Live DB migrated via `sql/migrations/2026-05-27-per-user-rls.sql`.
 - `started_at`/`completed_at` on sets capture wall-clock UTC (AND-16); included in the CSV/JSON export (AND-36) for health-tracker sync.
+- `rest_seconds` on a set is the rest taken **before** that set (since the previously logged set in the session, across exercises), captured at Start Set and stored on the set created at the next Log Set. Null for the first set of a session and for retroactive sets (AND-37). Every display shows each set's own `rest_seconds`. Historic pre-AND-37 rows are realigned by `sql/migrations/2026-07-02-rest-before-set.sql`.
+- Any date bucketing of `started_at` (heatmap, day-detail) must use `lib/date.ts` `localDateKey()`, not `started_at.split('T')[0]` — the latter is the UTC day and drifts from the locally-rendered grid (AND-38).
 - Retroactive set adds backdate `created_at` to the session's first set's `created_at` so grouping stays correct (see `SessionDetail.handleAddRetroactiveSet`).
 
 ## App architecture
@@ -97,6 +99,8 @@ Base path is `/gym-tracker/` for both dev and prod (GitHub Pages constraint).
 ## Verification
 
 UI changes are verified via Claude-in-Chrome MCP, not test suites. Treat `tests/` as the contract for pure helpers only. For UI work: start the dev server, drive the flow in Chrome, screenshot if it matters.
+
+**Local setup for agent-driven verification.** `.env` (gitignored) holds `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (the anon key is public — it ships in the deployed bundle). Auth blocks driving the real UI, so a dedicated **RLS-isolated test user** (created in the Supabase dashboard, credentials in gitignored `.secrets.local.json` — see `.secrets.local.example.json`) lets an agent log in and verify flows without touching real data. A project-scoped, OAuth **Supabase MCP server** (`database,docs`) can be added for direct DB reads/migrations; keep it `read_only` unless a migration needs writing.
 
 ## Things that don't yet exist
 
