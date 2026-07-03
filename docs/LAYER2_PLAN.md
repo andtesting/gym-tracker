@@ -110,7 +110,7 @@ Fallback if HAE proves unreliable: an iOS Shortcut with the "Find Health Samples
 
 | Step | What ships | Effort | Gate to next |
 | --- | --- | --- | --- |
-| L2.0 | `health` schema + `ingest-health` edge function + HAE configured on phone | 1–2 days | A week of clean daily ingests (spot-check counts vs the Health app) |
+| L2.0 | `health` schema + `ingest-health` edge function (both live 2026-07-03) + `Health Sync` Shortcut configured on phone (`docs/health-sync-shortcut-recipe.md`) | 1–2 days | A week of clean daily ingests (spot-check counts vs the Health app) |
 | L2.1 | Correlation views; optionally surface session HR on the app's SessionDetail (read-only, one query) | 1 day | Sessions match Watch workouts reliably |
 | L2.2 | Coach v0: weekly-review prompt/skill over MCP, run manually | 1–2 days of prompt iteration | Three consecutive useful weekly reviews |
 | L2.3 | Write-back loop: coach proposals → approved `routine_exercises` updates; app renders plan from templates (requires Layer 1 Phase 3) | 1 day | n/a |

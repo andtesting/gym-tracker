@@ -28,6 +28,9 @@ src/
   supabase.ts   Singleton client; `isSupabaseConfigured` gate.
   App.tsx       Auth gate + screen switch + cold-start active-workout resume.
 sql/schema.sql  Single-file schema, RLS policies, seed data. Run in Supabase SQL Editor.
+sql/health_schema.sql   Layer 2 `health` schema + ingest RPC (mirror of its migration).
+supabase/functions/     Edge functions. ingest-health: Apple Health ingestion dock
+                        (docs/HEALTH_SYNC_PLAN.md), deployed via Supabase MCP.
 tests/lib/      Vitest unit tests (pure helpers only — no component or integration tests yet).
 docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirements.md) and
                 product plans: DEEP_REVIEW_AND_V2_PLAN.md (Layer 1 roadmap), LAYER2_PLAN.md
@@ -52,7 +55,8 @@ sets          (id, user_id, session_id, exercise_id, set_order, set_type, reps, 
 - `rest_seconds` on a set is the rest taken **before** that set (since the previously logged set in the session, across exercises), captured at Start Set and stored on the set created at the next Log Set. Null for the first set of a session and for retroactive sets (AND-37). Every display shows each set's own `rest_seconds`. Historic pre-AND-37 rows are realigned by `sql/migrations/2026-07-02-rest-before-set.sql`.
 - Any date bucketing of `started_at` (heatmap, day-detail) must use `lib/date.ts` `localDateKey()`, not `started_at.split('T')[0]` — the latter is the UTC day and drifts from the locally-rendered grid (AND-38).
 - Retroactive set adds backdate `created_at` to the session's first set's `created_at` so grouping stays correct (see `SessionDetail.handleAddRetroactiveSet`).
-- **Phase 3 data-contract columns are schema-only for now.** `sessions.source`, `sets.deleted_at/rpe/notes/group_id`, exercise metadata, the `routine_exercises` template table, and case-insensitive name indexes exist in `sql/schema.sql` and `sql/migrations/2026-07-03-phase3-data-contract.sql`, but the migration has NOT been applied to the live DB and no app code touches these columns yet. Apply the migration before building UI on them; the app must keep working against a DB without them until then.
+- **Phase 3 data-contract columns are live, adoption is incremental.** `sessions.source`, `sets.deleted_at/rpe/notes/group_id`, exercise metadata, the `routine_exercises` template table, and case-insensitive name indexes (`sql/migrations/2026-07-03-phase3-data-contract.sql`) were applied to the live DB on 2026-07-03. UI adoption ships feature by feature; a column with no UI yet must stay ignored, not half-written. The PR that starts writing `deleted_at` must add `.is('deleted_at', null)` to every set-reading query except export.
+- **Layer 2 `health` schema is live** (2026-07-03): `health.workouts` / `health.samples` / `health.ingest_log` / `health.config`, written only by the `ingest-health` edge function through the service-role-locked RPC `public.health_ingest()` (token + owner id live in `health.config`, not function secrets — no CLI auth existed to set them). The PWA never reads or writes `health.*`. See `sql/health_schema.sql`, `docs/HEALTH_SYNC_PLAN.md`, `docs/health-sync-shortcut-recipe.md`.
 
 ## App architecture
 
