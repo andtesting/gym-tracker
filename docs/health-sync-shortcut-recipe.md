@@ -42,28 +42,28 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 ### 2.2 Workouts (with per-workout HR window)
 
 1. **Find Workouts where**: All Workouts, add filter **Start Date** is **after** `WindowStart`, Sort by Start Date, Limit **15** → `RecentWorkouts`
-2. **List** (empty) → **Add to Variable** `WorkoutDicts` (creates the variable; alternatively create it by adding the first Repeat result)
-3. **Repeat with Each** item in `RecentWorkouts`:
-   1. **Find Health Samples where**: Type **Heart Rate**, add filters **Start Date is after** `Repeat Item → Start Date` and **Start Date is before** `Repeat Item → End Date`, Sort by **Start Date**, Oldest First → `WorkoutHR`
-   2. **List** (empty) → **Add to Variable** `HrPoints` — reset trick: use **Text** action with nothing? No: simplest reliable reset is a **Dictionary**-free approach — skip the reset and build `HrPoints` fresh each iteration by using **Repeat with Each** item in `WorkoutHR` directly nested here:
-      - **Dictionary**: `t` = `Repeat Item 2 → Start Date` (Format: ISO 8601, include time), `bpm` = `Repeat Item 2 → Value` (as Number)
+2. **List** (empty) → **Add to Variable** `WorkoutDicts` (creates the variable)
+3. **Repeat with Each** item in `RecentWorkouts` (this is the *outer* loop; its item is `Repeat Item`):
+   1. **List** (empty) → **Set Variable** `HrPoints`. This reset is REQUIRED as the first action of every iteration: **Add to Variable** only appends, so without it workout #2's series would contain workout #1's points too, and the server computes avg/max HR from whatever series it receives.
+   2. **Find Health Samples where**: Type **Heart Rate**, add filters **Start Date is after** `Repeat Item → Start Date` and **Start Date is before** `Repeat Item → End Date`, Sort by **Start Date**, Oldest First → `WorkoutHR`
+   3. **Repeat with Each** item in `WorkoutHR` (nested *inner* loop; Shortcuts names its item `Repeat Item 2`):
+      - **Dictionary**: `t` = `Repeat Item 2 → Start Date` (Format: ISO 8601, include time + offset), `bpm` = `Repeat Item 2 → Value` (as Number)
       - **Add to Variable** `HrPoints`
-   3. **Dictionary**:
+   4. **Dictionary**:
       - `workout_type` = `Repeat Item → Workout Type` (as Text)
-      - `started_at` = `Repeat Item → Start Date` (Format: ISO 8601 with time)
-      - `ended_at` = `Repeat Item → End Date` (ISO 8601 with time)
+      - `started_at` = `Repeat Item → Start Date` (Format: ISO 8601 with time + offset)
+      - `ended_at` = `Repeat Item → End Date` (ISO 8601 with time + offset)
       - `active_energy_kcal` = `Repeat Item → Active Energy` (as Number, kcal)
       - `hr_series` = `HrPoints` (as Array)
-   4. **Add to Variable** `WorkoutDicts`
-   5. (Shortcuts has no per-iteration variable reset; if `HrPoints` accumulates across workouts, switch step 5.2 to build the dictionary from `WorkoutHR` via **Get Dictionary from Input** alternatives, or accept one shared series per batch and let Layer 2 re-window by timestamp — the server stores what it receives. Simplest correct fix if you hit this: move HR collection into its own Shortcut run per workout, or set `HrPoints` to an empty **Text** list via "Set Variable" with an empty List action at the top of each iteration.)
+   5. **Add to Variable** `WorkoutDicts`
 
-   > Note: avg/max HR are computed server-side from `hr_series`; the Shortcut never does math.
+   > Notes: avg/max HR are computed server-side from `hr_series`; the Shortcut never does math. Dates must be full ISO 8601 **with time and offset** (e.g. `2026-07-03T06:02:11+10:00`) — the server rejects date-only or offset-less strings by design, so a format drift fails loud with a 400 naming the field.
 
 ### 2.3 Weight
 
 1. **Find Health Samples where**: Type **Weight**, Start Date after `WindowStart` → `WeightSamples`
 2. **Repeat with Each** in `WeightSamples`:
-   - **Dictionary**: `sample_type` = `body_mass`, `measured_at` = `Repeat Item → Start Date` (ISO 8601), `value` = `Repeat Item → Value` (as Number, **kg**)
+   - **Dictionary**: `sample_type` = `body_mass`, `measured_at` = `Repeat Item → Start Date` (ISO 8601 with time + offset — same requirement as 2.2 for every date in this Shortcut; date-only strings are rejected server-side), `value` = `Repeat Item → Value` (as Number, **kg**)
    - **Add to Variable** `SampleDicts`
 
    (No `source` key needed: the server defaults `body_mass` to `withings-via-health` and everything else to `apple-watch-shortcut`.)
@@ -80,7 +80,7 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 
 1. **Find Health Samples where**: Type **Sleep Analysis**, Start Date after `WindowStart` → `SleepSegments`
 2. **Repeat with Each** in `SleepSegments`:
-    - **Dictionary**: `sample_type` = `sleep`, `measured_at` = `Repeat Item → Start Date` (ISO 8601), `ended_at` = `Repeat Item → End Date` (ISO 8601), `value` = `Repeat Item → Duration` (as Number, **minutes**), `detail` = `Repeat Item → Value` (the stage string, as Text)
+    - **Dictionary**: `sample_type` = `sleep`, `measured_at` = `Repeat Item → Start Date` (ISO 8601 with time + offset), `ended_at` = `Repeat Item → End Date` (ISO 8601 with time + offset), `value` = `Repeat Item → Duration` (as Number, **minutes**), `detail` = `Repeat Item → Value` (the stage string, as Text)
     - **Add to Variable** `SampleDicts`
 
 ### 2.7 Assemble and POST
@@ -99,7 +99,7 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 ### 2.8 Result handling
 
 1. **Get Dictionary Value**: key `ok` from `IngestResponse` → `OkFlag`
-2. **If** `OkFlag` **does not have any value** (or is not `1`/true):
+2. **If** `OkFlag` **is not** `1`. One positive condition only — the server returns `ok` on every response (`true` on success, `false` on 400/401/500, coerced by Shortcuts to `1`/`0`), and a missing-value test would stay silent on `false`. This single condition catches success=false, an absent key, and a non-JSON error body alike:
     - **Show Notification**: title `Health Sync failed`, body = `IngestResponse` (as Text)
 3. **Otherwise** (optional): **Show Notification** with `IngestResponse → counts` while building trust in the pipeline; delete the success branch once bored of it.
 

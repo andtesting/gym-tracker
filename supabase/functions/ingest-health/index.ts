@@ -48,8 +48,19 @@ function json(status: number, body: unknown): Response {
   });
 }
 
+// Strict ISO 8601 with time and explicit offset (what Shortcuts' ISO format
+// emits). JS Date.parse alone is looser than Postgres ::timestamptz ("2026"
+// parses in JS, throws in SQL — an unlogged 500 instead of a loud 400), and
+// offset-less strings would be interpreted in the function's timezone.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?([+-]\d{2}:?\d{2}|Z)$/;
+
 function parseableDate(v: unknown): v is string {
-  return typeof v === "string" && v.length > 0 && !Number.isNaN(Date.parse(v));
+  return typeof v === "string" && ISO_DATE_RE.test(v) && !Number.isNaN(Date.parse(v));
+}
+
+// Canonical UTC instant so the SQL casts can never disagree with JS parsing.
+function toUtc(v: string): string {
+  return new Date(v).toISOString();
 }
 
 function finiteNumber(v: unknown): v is number {
@@ -96,7 +107,7 @@ function validateWorkout(raw: unknown, i: number, errors: string[]): Workout | n
           errors.push(`${at}.hr_series[${j}]: expected {t: iso8601, bpm: positive number}`);
           break;
         }
-        hrSeries.push({ t: p.t as string, bpm: p.bpm as number });
+        hrSeries.push({ t: toUtc(p.t as string), bpm: p.bpm as number });
       }
     }
   }
@@ -113,8 +124,8 @@ function validateWorkout(raw: unknown, i: number, errors: string[]): Workout | n
   return {
     source: nonEmptyString(w.source) ? w.source.trim() : "apple-watch-shortcut",
     workout_type: (w.workout_type as string).trim(),
-    started_at: w.started_at as string,
-    ended_at: w.ended_at as string,
+    started_at: toUtc(w.started_at as string),
+    ended_at: toUtc(w.ended_at as string),
     active_energy_kcal: w.active_energy_kcal == null ? null : (w.active_energy_kcal as number),
     avg_hr: avgHr,
     max_hr: maxHr,
@@ -144,8 +155,8 @@ function validateSample(raw: unknown, i: number, errors: string[]): Sample | nul
   return {
     source: nonEmptyString(s.source) ? s.source.trim() : defaultSource,
     sample_type: s.sample_type as string,
-    measured_at: s.measured_at as string,
-    ended_at: s.ended_at == null ? null : (s.ended_at as string),
+    measured_at: toUtc(s.measured_at as string),
+    ended_at: s.ended_at == null ? null : toUtc(s.ended_at as string),
     value: s.value as number,
     detail: s.detail == null ? null : (s.detail as string),
   };
@@ -178,7 +189,9 @@ Deno.serve(async (req: Request) => {
   // Read before any 413: the gateway won't deliver a response written while
   // the request body is still unconsumed (curl hangs awaiting the reply).
   const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) return json(413, { ok: false, error: "payload too large" });
+  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
+    return json(413, { ok: false, error: "payload too large" });
+  }
 
   let body: Record<string, unknown>;
   try {
