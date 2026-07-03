@@ -6,6 +6,7 @@ import type { Exercise, Session, SetWithExercise } from '../types';
 import { formatRest } from '../lib/timer';
 import { useSettings } from '../hooks/useSettings';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
+import { normalizeRpe } from '../lib/rpe';
 import ExerciseSearch from './ExerciseSearch';
 import ConfirmSheet from './ConfirmSheet';
 import { useToast } from '../hooks/useToast';
@@ -24,7 +25,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [sets, setSets] = useState<SetWithExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [editedSets, setEditedSets] = useState<Record<string, { reps: string; weight_kg: string }>>({});
+  const [editedSets, setEditedSets] = useState<Record<string, { reps: string; weight_kg: string; rpe: string }>>({});
   const [error, setError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -72,9 +73,13 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   }
 
   function handleStartEdit() {
-    const initial: Record<string, { reps: string; weight_kg: string }> = {};
+    const initial: Record<string, { reps: string; weight_kg: string; rpe: string }> = {};
     for (const set of sets) {
-      initial[set.id] = { reps: String(set.reps), weight_kg: formatWeight(set.weight_kg, unit) };
+      initial[set.id] = {
+        reps: String(set.reps),
+        weight_kg: formatWeight(set.weight_kg, unit),
+        rpe: set.rpe == null ? '' : String(set.rpe),
+      };
     }
     setEditedSets(initial);
     setNotesDraft(session?.notes ?? '');
@@ -134,8 +139,9 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         if (!edited) continue;
         const newReps = parseInt(edited.reps, 10);
         const newWeightKg = displayToKg(parseFloat(edited.weight_kg), unit);
-        if (newReps !== set.reps || newWeightKg !== set.weight_kg) {
-          await updateSet(set.id, { reps: newReps, weight_kg: newWeightKg });
+        const newRpe = normalizeRpe(edited.rpe);
+        if (newReps !== set.reps || newWeightKg !== set.weight_kg || newRpe !== set.rpe) {
+          await updateSet(set.id, { reps: newReps, weight_kg: newWeightKg, rpe: newRpe });
         }
       }
       const trimmedNotes = notesDraft.trim();
@@ -220,7 +226,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     setAddingExercise(false);
   }
 
-  function updateEditField(setId: string, field: 'reps' | 'weight_kg', value: string) {
+  function updateEditField(setId: string, field: 'reps' | 'weight_kg' | 'rpe', value: string) {
     setEditedSets(prev => ({
       ...prev,
       [setId]: { ...prev[setId], [field]: value },
@@ -285,12 +291,12 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
               </div>
             )}
           </div>
-          <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 40px' : '50px 1fr 1fr 1fr' }}>
-            <span>Set</span><span>Reps</span><span>{unitHeader(unit)}</span>
+          <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 52px 40px' : '50px 1fr 1fr 44px 1fr' }}>
+            <span>Set</span><span>Reps</span><span>{unitHeader(unit)}</span><span>RPE</span>
             {editing ? <span /> : <span>Rest</span>}
           </div>
           {group.sets.map((set, j) => (
-            <div key={set.id} className="set-row" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 40px' : '50px 1fr 1fr 1fr' }}>
+            <div key={set.id} className="set-row" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 52px 40px' : '50px 1fr 1fr 44px 1fr' }}>
               <span>{j + 1}</span>
               {editing ? (
                 <>
@@ -306,6 +312,14 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                     inputMode="decimal"
                     value={editedSets[set.id]?.weight_kg ?? ''}
                     onChange={e => updateEditField(set.id, 'weight_kg', e.target.value)}
+                    style={{ minHeight: 32, padding: '4px 6px', fontSize: '0.875rem' }}
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editedSets[set.id]?.rpe ?? ''}
+                    placeholder="–"
+                    onChange={e => updateEditField(set.id, 'rpe', e.target.value)}
                     style={{ minHeight: 32, padding: '4px 6px', fontSize: '0.875rem' }}
                   />
                   <button
@@ -325,6 +339,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                 <>
                   <span>{set.reps}</span>
                   <span>{formatWeight(set.weight_kg, unit)}</span>
+                  <span className="text-muted">{set.rpe ?? ''}</span>
                   <span className="text-muted">{formatRest(set.rest_seconds)}</span>
                 </>
               )}

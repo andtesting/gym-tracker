@@ -386,6 +386,28 @@ input:focus, select:focus, textarea:focus {
   color: var(--color-border);
   cursor: default;
 }
+.qc-rpe-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+.qc-rpe-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  min-width: 26px;
+}
+.qc-chip-rpe {
+  font-size: 0.8125rem;
+  padding: 4px 0;
+}
+.qc-chip-active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+}
 .numpad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
