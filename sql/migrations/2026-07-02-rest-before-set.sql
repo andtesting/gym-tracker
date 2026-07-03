@@ -1,6 +1,11 @@
 -- Migration: rest_seconds "rest after" -> "rest before" this set (AND-37)
 -- Run ONCE in the Supabase SQL Editor against the live database.
 --
+-- STATUS: APPLIED to prod 2026-07-03 (via Supabase MCP apply_migration). Marker row
+--   '2026-07-02-rest-before-set' present in _migrations; 192/197 rows shifted, 0
+--   mismatches vs a from-backup recompute, confirmed on mobile. Idempotent, so a
+--   re-run against this DB is a guarded no-op. Kept for fresh-install / audit history.
+--
 -- Background:
 --   Until now the app stored `sets.rest_seconds` as the rest taken AFTER a set
 --   (written onto the previously-logged set when the next Start Set was pressed),
