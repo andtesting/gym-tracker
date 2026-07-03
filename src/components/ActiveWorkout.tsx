@@ -39,10 +39,14 @@ export default function ActiveWorkout({
   const workout = useWorkout(sessionId, routineId, { retroactive });
   // Restore persisted timer anchors so an iOS PWA kill mid-set or mid-rest
   // keeps measuring instead of silently dropping the timing data (AND-8).
+  // Anchors older than an hour are abandoned workouts, not rests; restoring
+  // them would record garbage multi-hour durations on the next set.
   const [restoredTimer] = useState<PersistedTimer | null>(() => {
     if (retroactive) return null;
     const persisted = loadActiveWorkout();
-    return persisted?.sessionId === sessionId ? persisted.timer ?? null : null;
+    const timer = persisted?.sessionId === sessionId ? persisted.timer ?? null : null;
+    if (timer?.startedAtMs && Date.now() - timer.startedAtMs > 60 * 60 * 1000) return null;
+    return timer;
   });
   const initialTimerState: TimerState | undefined =
     restoredTimer && restoredTimer.mode !== 'idle' && restoredTimer.startedAtMs !== null

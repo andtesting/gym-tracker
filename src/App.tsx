@@ -3,6 +3,7 @@ import type { Screen } from './types';
 import { isSupabaseConfigured } from './supabase';
 import { useAuth } from './hooks/useAuth';
 import { loadActiveWorkout, clearActiveWorkout, validatePersistedSession } from './lib/sessionPersistence';
+import { ensureLocalDataOwner } from './lib/localOwner';
 import { useSync } from './hooks/useSync';
 import LoginScreen from './components/LoginScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
@@ -41,6 +42,10 @@ export default function App() {
   const [resumeChecked, setResumeChecked] = useState(false);
   const { session, loading, recovery, clearRecovery } = useAuth();
   const screenRef = useRef(screen);
+  // Must run before useSync's first drain: rendering happens before effects,
+  // and the guard is idempotent, so calling it here (not in an effect) is the
+  // ordering guarantee that a previous user's queue can't sync as this user.
+  if (session?.user?.id) ensureLocalDataOwner(session.user.id);
   useSync();
 
   // Screen state stays the source of truth; the History API mirrors it one

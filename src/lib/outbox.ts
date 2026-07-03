@@ -38,16 +38,19 @@ export function pushOutbox(item: OutboxItem): void {
   save([...loadOutbox(), item]);
 }
 
-export function removeOutboxHead(): void {
-  save(loadOutbox().slice(1));
+// Removal is keyed to the item that was actually executed, not positional:
+// with two tabs draining the same localStorage queue, a positional shift
+// could discard a write the other tab never executed. If the head no longer
+// matches, another tab already removed it; this becomes a no-op and the
+// caller's next loop iteration re-reads the queue.
+export function removeOutboxHead(executed: OutboxItem): void {
+  const queue = loadOutbox();
+  if (queue.length === 0 || JSON.stringify(queue[0]) !== JSON.stringify(executed)) return;
+  save(queue.slice(1));
 }
 
-// Permanently failed items are kept aside rather than deleted, so the data
-// survives for manual recovery even when the server rejects it.
-export function deadLetterHead(): void {
-  const queue = loadOutbox();
-  const head = queue[0];
-  if (!head) return;
+function appendDead(items: OutboxItem[]): void {
+  if (items.length === 0) return;
   const raw = localStorage.getItem(DEAD_KEY);
   let dead: OutboxItem[];
   try {
@@ -55,8 +58,24 @@ export function deadLetterHead(): void {
   } catch {
     dead = [];
   }
-  localStorage.setItem(DEAD_KEY, JSON.stringify([...dead, head]));
+  localStorage.setItem(DEAD_KEY, JSON.stringify([...dead, ...items]));
+}
+
+// Permanently failed items are kept aside rather than deleted, so the data
+// survives for manual recovery even when the server rejects it.
+export function deadLetterHead(executed: OutboxItem): void {
+  const queue = loadOutbox();
+  if (queue.length === 0 || JSON.stringify(queue[0]) !== JSON.stringify(executed)) return;
+  appendDead([queue[0]]);
   save(queue.slice(1));
+}
+
+// Quarantines the entire queue (account switch on this device: the writes
+// belong to the previous user and must never sync under the new session).
+export function quarantineOutbox(): void {
+  const queue = loadOutbox();
+  appendDead(queue);
+  save([]);
 }
 
 // Network-level failures (offline, DNS, aborted) throw TypeError from fetch;

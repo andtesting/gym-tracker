@@ -21,16 +21,17 @@ async function drain(onDeadLetter: ShowToast): Promise<void> {
     for (;;) {
       const queue = loadOutbox();
       if (queue.length === 0) return;
+      const head = queue[0];
       try {
-        await execOutboxItem(queue[0]);
+        await execOutboxItem(head);
       } catch (e) {
         if (isRetryableSyncError(e)) return; // offline/auth: retry on next kick
-        console.error('Dropping unsyncable change:', queue[0], e);
-        deadLetterHead();
+        console.error('Dropping unsyncable change:', head, e);
+        deadLetterHead(head);
         onDeadLetter('A change could not be synced; a copy was kept on this device.');
         continue;
       }
-      removeOutboxHead();
+      removeOutboxHead(head);
     }
   } finally {
     draining = false;

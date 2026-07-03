@@ -4,6 +4,7 @@ import {
   pushOutbox,
   removeOutboxHead,
   deadLetterHead,
+  quarantineOutbox,
   isRetryableSyncError,
   OUTBOX_EVENT,
 } from '../../src/lib/outbox';
@@ -39,17 +40,33 @@ describe('outbox queue', () => {
     expect(loadOutbox()).toEqual([sessionUpsert, setUpsert, setDelete]);
   });
 
-  it('removes only the head', () => {
+  it('removes only the head, keyed to the executed item', () => {
     pushOutbox(sessionUpsert);
     pushOutbox(setUpsert);
-    removeOutboxHead();
+    removeOutboxHead(sessionUpsert);
     expect(loadOutbox()).toEqual([setUpsert]);
+  });
+
+  it('is a no-op when the head no longer matches (another tab removed it)', () => {
+    pushOutbox(sessionUpsert);
+    pushOutbox(setUpsert);
+    removeOutboxHead(setUpsert);
+    expect(loadOutbox()).toEqual([sessionUpsert, setUpsert]);
   });
 
   it('clears storage when the queue empties', () => {
     pushOutbox(setUpsert);
-    removeOutboxHead();
+    removeOutboxHead(setUpsert);
     expect(localStorage.getItem('gym-tracker-outbox')).toBeNull();
+  });
+
+  it('quarantines the whole queue to the dead-letter store', () => {
+    pushOutbox(sessionUpsert);
+    pushOutbox(setUpsert);
+    quarantineOutbox();
+    expect(loadOutbox()).toEqual([]);
+    const dead = JSON.parse(localStorage.getItem('gym-tracker-outbox-dead')!);
+    expect(dead).toEqual([sessionUpsert, setUpsert]);
   });
 
   it('survives corrupted storage', () => {
@@ -60,7 +77,7 @@ describe('outbox queue', () => {
   it('dead-letters the head instead of losing it', () => {
     pushOutbox(setUpsert);
     pushOutbox(setDelete);
-    deadLetterHead();
+    deadLetterHead(setUpsert);
     expect(loadOutbox()).toEqual([setDelete]);
     const dead = JSON.parse(localStorage.getItem('gym-tracker-outbox-dead')!);
     expect(dead).toEqual([setUpsert]);
@@ -70,7 +87,7 @@ describe('outbox queue', () => {
     const listener = vi.fn();
     window.addEventListener(OUTBOX_EVENT, listener);
     pushOutbox(setUpsert);
-    removeOutboxHead();
+    removeOutboxHead(setUpsert);
     window.removeEventListener(OUTBOX_EVENT, listener);
     expect(listener).toHaveBeenCalledTimes(2);
   });
