@@ -107,7 +107,7 @@ function validateWorkout(raw: unknown, i: number, errors: string[]): Workout | n
           errors.push(`${at}.hr_series[${j}]: expected {t: iso8601, bpm: positive number}`);
           break;
         }
-        hrSeries.push({ t: p.t as string, bpm: p.bpm as number });
+        hrSeries.push({ t: toUtc(p.t as string), bpm: p.bpm as number });
       }
     }
   }

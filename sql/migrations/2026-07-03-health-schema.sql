@@ -139,7 +139,8 @@ begin
       (w->>'active_energy_kcal')::numeric,
       (w->>'avg_hr')::numeric,
       (w->>'max_hr')::numeric,
-      nullif(w->'hr_series', 'null'::jsonb)   -- JSON null would defeat `hr_series is null` reads
+      -- JSON null or empty series would defeat `hr_series is null` reads
+      nullif(nullif(w->'hr_series', 'null'::jsonb), '[]'::jsonb)
     )
     on conflict (user_id, source, started_at) do update set
       workout_type = excluded.workout_type,

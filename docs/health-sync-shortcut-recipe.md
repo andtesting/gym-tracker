@@ -63,7 +63,7 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 
 1. **Find Health Samples where**: Type **Weight**, Start Date after `WindowStart` → `WeightSamples`
 2. **Repeat with Each** in `WeightSamples`:
-   - **Dictionary**: `sample_type` = `body_mass`, `measured_at` = `Repeat Item → Start Date` (ISO 8601), `value` = `Repeat Item → Value` (as Number, **kg**)
+   - **Dictionary**: `sample_type` = `body_mass`, `measured_at` = `Repeat Item → Start Date` (ISO 8601 with time + offset — same requirement as 2.2 for every date in this Shortcut; date-only strings are rejected server-side), `value` = `Repeat Item → Value` (as Number, **kg**)
    - **Add to Variable** `SampleDicts`
 
    (No `source` key needed: the server defaults `body_mass` to `withings-via-health` and everything else to `apple-watch-shortcut`.)
@@ -80,7 +80,7 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 
 1. **Find Health Samples where**: Type **Sleep Analysis**, Start Date after `WindowStart` → `SleepSegments`
 2. **Repeat with Each** in `SleepSegments`:
-    - **Dictionary**: `sample_type` = `sleep`, `measured_at` = `Repeat Item → Start Date` (ISO 8601), `ended_at` = `Repeat Item → End Date` (ISO 8601), `value` = `Repeat Item → Duration` (as Number, **minutes**), `detail` = `Repeat Item → Value` (the stage string, as Text)
+    - **Dictionary**: `sample_type` = `sleep`, `measured_at` = `Repeat Item → Start Date` (ISO 8601 with time + offset), `ended_at` = `Repeat Item → End Date` (ISO 8601 with time + offset), `value` = `Repeat Item → Duration` (as Number, **minutes**), `detail` = `Repeat Item → Value` (the stage string, as Text)
     - **Add to Variable** `SampleDicts`
 
 ### 2.7 Assemble and POST
