@@ -2,26 +2,28 @@
 
 Snapshot of where the project is. Replace every session, never append.
 
-## Current state — 2026-07-03 (evening)
+## Current state — 2026-07-03 (late)
 
-Branch: `main`, clean. Docs-only session; no code changes.
+Branch: `main`. Big execution session: Phase 0 through Phase 3 of `docs/DEEP_REVIEW_AND_V2_PLAN.md` are done. Every PR was reviewed by parallel finder agents, steelmanned, amended, then squash-merged.
 
-Done this session:
+Merged this session:
 
-- **Deep project review + V2 plan** at `docs/DEEP_REVIEW_AND_V2_PLAN.md`. 13 concrete code findings (N+1/lossy export, non-transactional reorder, in-memory timer state lost on iOS PWA kill, missing apple-touch-icon / safe-area / dark mode, silent catches, wrong elapsed clock on resume, unbounded history fetches, case-sensitive name uniqueness). Layer 1 plan phases: 0 quick wins → 1 local-first offline → 2 quick-capture keypad (kill the OS keyboard; prefill + nudge chips + in-app pad) → 3 data-contract migrations (provenance, soft delete, RPE, notes, `routine_exercises` templates, supersets) → 5 elegance.
-- **Two-layer architecture settled** (plan doc Part 0): this app = capture / hot path only; processing + AI coach = Layer 2, outside the app. No HealthKit writes ever (Andy dual-logs on Apple Watch, so Health owns the envelope + HR); PWA stays, no native app.
-- **Layer 2 plan** at `docs/LAYER2_PLAN.md`: `health` schema in the same Supabase project; Health Auto Export → edge function ingestion (Watch vitals + Withings weight both arrive via Apple Health); time-overlap correlation views; coach v0 = Claude over the existing read-only Supabase MCP; write-back into the app only via `routine_exercises`, human-approved.
-- AGENTS.md gained a "Product direction" section pointing at both plans.
-- Parked explicitly (future consideration): voice notes, video/form checks.
+- **PR #16-18 (Phase 0 quick wins)**: prefill reps/weight, lossless paginated export, error toasts, resume elapsed clock, PNG app icons, safe-area insets, dark mode, iOS back gesture via History API. Review amendments included a real bug: un-ranged supabase-js queries cap at 1000 rows (export would have truncated silently).
+- **PR #19 (Phase 1, AND-8)**: local-first logging. FIFO outbox in localStorage (full-row upserts, client UUIDs, idempotent replay), useSync drain loop, timer anchors persisted across PWA kills (capped 1h), offline session start, optimistic resume, account-switch quarantine (`lib/localOwner`), cross-tab-safe keyed dequeue. Verified end to end with an airplane-mode drill in Chrome; the drill caught that supabase-js reports fetch failures as plain objects, not Errors.
+- **PR #20 (Phase 2, AND-47)**: quick-capture logging. In-app number pad (replace-on-first-digit), nudge chips, big value buttons, no OS keyboard in the log loop.
+- **PR #21 (Phase 3a)**: weight-PR badge at log time + session summary overlay on Finish (duration/sets/tonnage/PRs). Pure derivation, no schema.
+- **PR #22 (Phase 3b, if merged)**: schema-only data-contract migration; see gate below.
 
-## Next steps
+## Next steps (in order)
 
-- Layer 1 Phase 0 quick wins are the natural next session (icons, safe-area, dark mode, prefill reps/weight, lossless single-query export, error toasts, elapsed-from-`started_at`, back-gesture via History API). File Linear issues per item before starting.
-- Layer 2 L2.0 (health schema + `ingest-health` edge function + HAE on phone) is independent of all app work and can start any time.
-- Existing backlog absorbed into plan phases: AND-8 offline → Phase 1; AND-9 RPE/notes → Phase 3; AND-10 supersets → Phase 3; AND-6 rest targets → templates + Phase 5.
-- Export UTC-date quirk previously "deferred by design" is now superseded by the Phase 0 export fix.
-- Stale local branch `fix/and-10-pwa-loading-stuck` still around; prune if that approach is dead.
+1. **Andy: real-device pass** on the deployed app: home-screen icon, safe area, dark mode, back gesture, number pad feel, offline drill (airplane mode in the gym), PR badge + summary.
+2. **Andy: apply `sql/migrations/2026-07-03-phase3-data-contract.sql`** in the Supabase SQL Editor (additive, guarded, re-run safe). Until then no code may touch the new columns (`sessions.source`, `sets.rpe/notes/group_id/deleted_at`, `routine_exercises`, exercise metadata).
+3. **After migration applied**: build the column-dependent UI: RPE quick-tap row in QuickCapture, session/set notes, routine templates (plan view + per-exercise rest targets, AND-6), soft-delete switch in deleteSet, `source` on session insert.
+4. **Phase 4 = Layer 2** (`docs/LAYER2_PLAN.md`): blocked on Andy: Health Auto Export on the phone + a write path for the `health` schema migration (Supabase MCP is read-only). L2.0 ingestion is independent of all app work.
+5. **Phase 5 elegance backlog**: rest countdown + push notification (needs templates), sheets-in-history for back gesture, undo-toast instead of confirm for set delete, action sheet replacing window.confirm, home streak/volume stats.
 
 ## Notes
 
-- Quick-capture UX confirmed with Andy: big calculator-style in-app pad, prefilled from previous set, one-tap log for the repeat case. Reported full-QWERTY keyboard on device despite `inputMode` hints; unverified, moot after Phase 2.
+- Review-declined items worth remembering: PR badges can be optimistic across consecutive offline sessions (histories are server-sourced; self-heals on sync). Multi-device edits to an actively open session are out of contract (phone-authoritative, documented in AGENTS.md).
+- Test account (<jchx.agent@gmail.com>) now holds several finished "test push A" sessions from verification; harmless, useful as history for future drills.
+- The two remaining lint errors (App.tsx resume effect, useAuth) are pre-existing set-state-in-effect findings; structural, deliberately untouched.
