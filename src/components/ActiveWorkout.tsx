@@ -74,6 +74,9 @@ export default function ActiveWorkout({
   const [now, setNow] = useState(() => Date.now());
   const sessionElapsed = Math.max(0, Math.round((now - sessionStart) / 1000));
   const [showHistory, setShowHistory] = useState(false);
+  // The Undo toast can outlive the workout; once finished, undo must not
+  // resurrect a set into the closed session.
+  const finishedRef = useRef(false);
   // Duration is snapshotted at finish: the elapsed interval keeps ticking
   // behind the overlay, and the reward screen must not count up. startedAt is
   // stashed before clearActiveWorkout so the notes upsert can carry the same
@@ -155,6 +158,7 @@ export default function ActiveWorkout({
   }
 
   async function handleFinish() {
+    finishedRef.current = true;
     timer.stop();
     if (retroactive && retroactiveDate) {
       // Anchor to noon local on the picked date so the session sits cleanly on
@@ -382,7 +386,7 @@ export default function ActiveWorkout({
           }}
           onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
           onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}
-          onRestoreSet={(set) => workout.restoreSet(set)}
+          onRestoreSet={(set) => (finishedRef.current ? false : workout.restoreSet(set))}
           onRemoveExercise={() => workout.removeExercise(workout.activeIndex!)}
           onBackToPlan={() => switchExercise(null)}
         />

@@ -144,7 +144,7 @@ export default function SetLogger({
       toast('Set deleted.', {
         label: 'Undo',
         onClick: () => {
-          if (!onRestoreSet(set)) toast('Could not undo: the exercise was removed.');
+          if (!onRestoreSet(set)) toast('Could not undo this set.');
         },
       });
     } catch (e) {
