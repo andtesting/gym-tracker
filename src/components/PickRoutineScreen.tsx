@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { fetchRoutines, createRoutine } from '../api/routines';
-import { createSession } from '../api/sessions';
 import { saveActiveWorkout } from '../lib/sessionPersistence';
+import { pushOutbox } from '../lib/outbox';
+import { cachedFetch } from '../lib/cache';
 import type { Routine, Screen } from '../types';
 import { useToast } from '../hooks/useToast';
 
@@ -18,27 +19,33 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
   const toast = useToast();
 
   useEffect(() => {
-    fetchRoutines()
+    cachedFetch('routines', fetchRoutines)
       .then(setRoutines)
       .catch(() => toast('Failed to load routines.'))
       .finally(() => setLoading(false));
   }, [toast]);
 
-  async function handleSelectRoutine(routine: Routine) {
+  // Starting a workout is fully local (AND-8): the session id is minted on
+  // the client and the row syncs through the outbox, so a dead spot in the
+  // gym never blocks the start.
+  function handleSelectRoutine(routine: Routine) {
+    if (creating) return;
     setCreating(true);
-    try {
-      const session = await createSession(routine.id);
-      const workout = {
-        sessionId: session.id,
-        routineId: routine.id,
-        routineName: routine.name,
-      };
-      saveActiveWorkout(workout);
-      onNavigate({ name: 'activeWorkout', ...workout });
-    } catch {
-      toast('Failed to start workout.');
-      setCreating(false);
-    }
+    const sessionId = crypto.randomUUID();
+    const startedAt = new Date().toISOString();
+    pushOutbox({
+      table: 'sessions',
+      op: 'upsert',
+      rowId: sessionId,
+      payload: { id: sessionId, routine_id: routine.id, started_at: startedAt },
+    });
+    const workout = {
+      sessionId,
+      routineId: routine.id,
+      routineName: routine.name,
+    };
+    saveActiveWorkout({ ...workout, startedAt, sets: [] });
+    onNavigate({ name: 'activeWorkout', ...workout });
   }
 
   async function handleAddRoutine() {

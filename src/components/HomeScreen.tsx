@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { fetchRecentSessions, fetchHeatmapSessions, fetchExportSets } from '../api/sessions';
 import { signOut } from '../hooks/useAuth';
-import { saveActiveWorkout } from '../lib/sessionPersistence';
+import { saveActiveWorkout, loadActiveWorkout } from '../lib/sessionPersistence';
 import { toCSV, toJSON } from '../lib/export';
 import { localDateKey } from '../lib/date';
+import { useSync } from '../hooks/useSync';
 import type { ExportRow } from '../lib/export';
 import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
 import ActivityHeatmap from './ActivityHeatmap';
@@ -22,6 +23,10 @@ export default function HomeScreen({ onNavigate }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [popoverDate, setPopoverDate] = useState<string | null>(null);
   const toast = useToast();
+  const pendingSync = useSync();
+  // The server session list can't know about an offline-started workout;
+  // the local record is the way back in.
+  const [localWorkout] = useState(() => loadActiveWorkout());
 
   const sessionsForPopover = popoverDate
     ? heatmapSessions.filter(s => localDateKey(s.started_at) === popoverDate)
@@ -97,10 +102,33 @@ export default function HomeScreen({ onNavigate }: Props) {
       <div className="header-bar">
         <h1>Gym Tracker</h1>
         <div className="row">
+          {pendingSync > 0 && (
+            <span className="text-small" style={{ color: 'var(--color-warning)' }}>
+              Syncing {pendingSync}…
+            </span>
+          )}
           <button className="btn-secondary btn-small" onClick={() => onNavigate({ name: 'editMode' })}>Edit</button>
           <button className="btn-secondary btn-small" onClick={signOut}>Logout</button>
         </div>
       </div>
+
+      {localWorkout && (
+        <div
+          className="session-list-item"
+          style={{ borderLeft: '3px solid var(--color-warning)' }}
+          onClick={() => onNavigate({
+            name: 'activeWorkout',
+            sessionId: localWorkout.sessionId,
+            routineId: localWorkout.routineId,
+            routineName: localWorkout.routineName,
+          })}
+        >
+          <div className="row-between">
+            <strong>Resume {localWorkout.routineName}</strong>
+            <span className="text-small" style={{ color: 'var(--color-warning)' }}>In progress</span>
+          </div>
+        </div>
+      )}
 
       {loading && <p className="text-muted text-center mt-16">Loading...</p>}
       {error && <p className="text-center mt-16" style={{ color: 'var(--color-danger)' }}>{error}</p>}
@@ -126,7 +154,7 @@ export default function HomeScreen({ onNavigate }: Props) {
       )}
 
       <div className="mt-16">
-        {sessions.map(session => (
+        {sessions.filter(s => s.id !== localWorkout?.sessionId).map(session => (
           <div
             key={session.id}
             className="session-list-item"
@@ -137,7 +165,11 @@ export default function HomeScreen({ onNavigate }: Props) {
                   routineId: session.routine_id!,
                   routineName: session.routines.name,
                 };
-                saveActiveWorkout(workout);
+                // Never clobber an existing local record: it may hold
+                // unsynced sets and timer anchors for this same session.
+                if (loadActiveWorkout()?.sessionId !== session.id) {
+                  saveActiveWorkout(workout);
+                }
                 onNavigate({ name: 'activeWorkout', ...workout });
               } else {
                 onNavigate({ name: 'sessionDetail', sessionId: session.id });

@@ -56,14 +56,11 @@ sets          (id, user_id, session_id, exercise_id, set_order, set_type, reps, 
 
 **Screen state.** `App.tsx` holds the current `Screen`. Each screen component gets an `onNavigate` or `onBack`/`onFinish`. No router, no URLs.
 
-**Active workout state.** `useWorkout(sessionId, routineId)` is the workhorse hook for `ActiveWorkout`. On mount it fetches:
+**Active workout state (local-first, AND-8).** During a workout the phone is the source of truth; Supabase is a sync target. `useWorkout(sessionId, routineId)` hydrates the current session's sets from the localStorage active-workout record when one exists (server fetch only seeds it), and every mutation updates state + the record synchronously, then enqueues a full-row upsert/delete into the **outbox** (`lib/outbox.ts`: FIFO queue, client-minted UUIDs, idempotent replay). `hooks/useSync` drains the queue on start, queue change, `online`, and a heartbeat; permanent rejections dead-letter to `gym-tracker-outbox-dead` with a toast. Sessions are also created locally (`PickRoutineScreen` mints the UUID), so starting and finishing a workout works fully offline. Reference lists (routines/exercises/muscle groups) use `lib/cache.ts` network-first caching. Conflict policy: single user, one device at a time, phone-authoritative during an active session; editing that same session from another device mid-workout is out of contract. `lib/localOwner.ts` quarantines all local state if a different account signs in on the device.
 
-1. The last completed session for this routine (for the "Last Session" reference column).
-2. The sets already logged in the current session (so resumed sessions show progress).
+The hook merges current sets with the last same-routine session into an ordered list of `ActiveExercise = { exercise, sets, histories }`. Exercises from the prior session that haven't been started yet still appear so the user has the plan in front of them (plan seeding needs network; offline shows logged exercises only).
 
-It merges these into an ordered list of `ActiveExercise = { exercise, sets, lastSessionSets }`. Exercises from the prior session that haven't been started yet still appear so the user has the plan in front of them.
-
-**Resume.** `sessionPersistence` writes the current `{sessionId, routineId, routineName}` to `localStorage`. On cold start, `App.tsx` reads it, validates the session is still unfinished via Supabase, and jumps straight into `ActiveWorkout`. See `docs/AND-11-session-resume-requirements.md`.
+**Resume.** The active-workout record also carries the sets, `startedAt`, and timer anchors (so a PWA kill mid-set keeps measuring rest/duration, capped at 1h). On cold start, `App.tsx` validates via `validatePersistedSession` which returns `active | finished | missing | unknown`, consults the outbox first (an unsynced session is not "missing"), and resumes optimistically on `unknown` (offline). See `docs/AND-11-session-resume-requirements.md`.
 
 **Timer.** `useTimer` is a three-state machine: `idle | set | rest`. `lib/timer.ts` is the pure version (unit-tested).
 
@@ -110,7 +107,6 @@ Two-layer model (settled 2026-07-03): this app is the capture layer only (hot pa
 
 ## Things that don't yet exist
 
-- No offline write queue (sets are sent to Supabase synchronously; offline = blocked). Tracked as AND-8.
 - No supersets/circuits (AND-10).
 - No per-exercise rest defaults / countdown timer (AND-6).
 - No notes or RPE (AND-9).
