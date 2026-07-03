@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
+import { isWeightPr } from '../lib/summary';
 import LastSessionRef from './LastSessionRef';
 import QuickCapture from './QuickCapture';
 
@@ -175,6 +176,11 @@ export default function SetLogger({
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
                 const rest = formatRest(set.rest_seconds);
+                // A set only badges when it beats history AND every earlier
+                // set today: the record can be broken twice in a session, but
+                // a lighter follow-up set is not a PR.
+                const maxEarlierToday = Math.max(0, ...loggedSets.slice(0, i).map(s => s.weight_kg));
+                const isPr = isWeightPr(set, histories) && set.weight_kg > maxEarlierToday;
                 return (
                   <div
                     key={set.id}
@@ -209,8 +215,9 @@ export default function SetLogger({
                         <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
                           {set.reps}
                         </span>
-                        <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
+                        <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap' }}>
                           {set.weight_kg}kg
+                          {isPr && <span className="pr-badge">PR</span>}
                         </span>
                       </>
                     )}
