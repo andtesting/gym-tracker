@@ -35,7 +35,7 @@ export async function createSet(input: CreateSetInput): Promise<WorkoutSet> {
 
 export async function updateSet(
   id: string,
-  updates: { reps?: number; weight_kg?: number; set_order?: number; rpe?: number | null; notes?: string | null },
+  updates: { reps?: number; weight_kg?: number; set_order?: number; rpe?: number | null; notes?: string | null; deleted_at?: string | null },
 ): Promise<void> {
   const { error } = await supabase
     .from('sets')
@@ -44,10 +44,12 @@ export async function updateSet(
   if (error) throw error;
 }
 
+// Soft delete (Layer 2 contract: rows are never hard-deleted individually;
+// export keeps them, every other reader filters them out).
 export async function deleteSet(id: string): Promise<void> {
   const { error } = await supabase
     .from('sets')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw error;
 }

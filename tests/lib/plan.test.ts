@@ -20,6 +20,7 @@ function makeSet(exerciseId: string, order: number): SetWithExercise {
     rpe: null,
     notes: null,
     group_id: null,
+    deleted_at: null,
     started_at: null,
     completed_at: null,
     created_at: '2026-07-01T00:00:00Z',

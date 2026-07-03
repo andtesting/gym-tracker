@@ -43,6 +43,7 @@ function toSetRow(set: WorkoutSet): Record<string, unknown> {
     rpe: set.rpe ?? null,
     notes: set.notes ?? null,
     group_id: set.group_id ?? null,
+    deleted_at: set.deleted_at ?? null,
     started_at: set.started_at,
     completed_at: set.completed_at,
     created_at: set.created_at,
@@ -287,6 +288,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       rpe: data.rpe,
       notes: null,
       group_id: exercise.groupId,
+      deleted_at: null,
       set_duration_seconds: data.set_duration_seconds,
       rest_seconds: restSeconds,
       started_at: data.started_at,
@@ -349,17 +351,32 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     exercisesRef.current = next;
     setExercises(next);
     persistSets(next);
-    pushOutbox({ table: 'sets', op: 'upsert', rowId: set.id, payload: toSetRow(set) });
+    // deleted_at explicitly null: the undo upsert must clear the soft-delete
+    // stamp the delete upsert wrote, whatever the captured object held.
+    pushOutbox({ table: 'sets', op: 'upsert', rowId: set.id, payload: toSetRow({ ...set, deleted_at: null }) });
     return true;
   }, [persistSets]);
 
+  // Soft delete: the row stays on the server with deleted_at stamped, so
+  // Layer 2 never silently loses a set it already processed. Local state
+  // still drops the row (the UI never shows deleted sets), and restoreSet's
+  // full-row upsert of the original set (deleted_at null) is the undo.
   const deleteSet = useCallback(async (exerciseIndex: number, setId: string) => {
-    const next = exercises.map((e, i) =>
-      i === exerciseIndex ? { ...e, sets: e.sets.filter(s => s.id !== setId) } : e,
-    );
+    let removed: WorkoutSet | null = null;
+    const next = exercises.map((e, i) => {
+      if (i !== exerciseIndex) return e;
+      removed = e.sets.find(s => s.id === setId) ?? null;
+      return { ...e, sets: e.sets.filter(s => s.id !== setId) };
+    });
+    if (!removed) return;
     setExercises(next);
     persistSets(next);
-    pushOutbox({ table: 'sets', op: 'delete', rowId: setId });
+    pushOutbox({
+      table: 'sets',
+      op: 'upsert',
+      rowId: setId,
+      payload: toSetRow({ ...(removed as WorkoutSet), deleted_at: new Date().toISOString() }),
+    });
     if (lastSetId === setId) setLastSetId(null);
   }, [exercises, persistSets, lastSetId]);
 
