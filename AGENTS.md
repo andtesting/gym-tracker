@@ -101,6 +101,8 @@ npx vitest                  # unit tests
 ```
 
 Base path is `/gym-tracker/` for both dev and prod (GitHub Pages constraint).
+Another local Vite app often holds port 5173; when it does, this dev server
+lands on 5174 — trust the vite banner, not the default URL.
 
 ## Verification
 
