@@ -13,6 +13,7 @@ import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
 import { summariseWorkout } from '../lib/summary';
 import type { WorkoutSummary } from '../lib/summary';
+import { pushOutbox } from '../lib/outbox';
 import { useSettings } from '../hooks/useSettings';
 import { formatWeight, unitLabel } from '../lib/units';
 import ExerciseSearch from './ExerciseSearch';
@@ -74,8 +75,14 @@ export default function ActiveWorkout({
   const sessionElapsed = Math.max(0, Math.round((now - sessionStart) / 1000));
   const [showHistory, setShowHistory] = useState(false);
   // Duration is snapshotted at finish: the elapsed interval keeps ticking
-  // behind the overlay, and the reward screen must not count up.
-  const [summary, setSummary] = useState<{ data: WorkoutSummary; durationSeconds: number } | null>(null);
+  // behind the overlay, and the reward screen must not count up. startedAt is
+  // stashed before clearActiveWorkout so the notes upsert can carry the same
+  // identity fields as finish() for locally created sessions.
+  const [summary, setSummary] = useState<{
+    data: WorkoutSummary;
+    durationSeconds: number;
+    startedAt: string | null;
+  } | null>(null);
   const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
@@ -159,15 +166,29 @@ export default function ActiveWorkout({
       onFinish();
       return;
     }
+    const persistedStartedAt = loadActiveWorkout()?.startedAt ?? null;
     await workout.finish();
     clearActiveWorkout();
     // The summary is the reward moment; skip it for an empty session.
     const workoutSummary = summariseWorkout(workout.exercises);
     if (workoutSummary.totalSets > 0) {
-      setSummary({ data: workoutSummary, durationSeconds: sessionElapsed });
+      setSummary({ data: workoutSummary, durationSeconds: sessionElapsed, startedAt: persistedStartedAt });
     } else {
       onFinish();
     }
+  }
+
+  function saveSummaryNotes(notes: string) {
+    if (!notes) return;
+    const payload: Record<string, unknown> = { id: sessionId, notes };
+    // Same identity rule as finish(): locally created sessions carry their
+    // own fields so the upsert can reconstruct the row if the creation write
+    // was lost; server-created sessions send only the changed column.
+    if (summary?.startedAt) {
+      payload.routine_id = routineId;
+      payload.started_at = summary.startedAt;
+    }
+    pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
   }
 
   if (workout.loading) {
@@ -386,7 +407,11 @@ export default function ActiveWorkout({
           routineName={routineName}
           durationSeconds={summary.durationSeconds}
           summary={summary.data}
-          onDone={onFinish}
+          onSaveNotes={saveSummaryNotes}
+          onDone={(notes) => {
+            saveSummaryNotes(notes);
+            onFinish();
+          }}
         />
       )}
 

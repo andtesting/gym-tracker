@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import type { WorkoutSummary } from '../lib/summary';
 import { useSettings } from '../hooks/useSettings';
 import { kgToDisplay, formatWeight, unitLabel } from '../lib/units';
@@ -6,7 +7,11 @@ interface Props {
   routineName: string;
   durationSeconds: number;
   summary: WorkoutSummary;
-  onDone: () => void;
+  // Trimmed note text, or '' when left empty.
+  onDone: (notes: string) => void;
+  // Called on unmount when a typed note was never submitted (e.g. the user
+  // back-swiped past the overlay); must be idempotent-safe with onDone.
+  onSaveNotes: (notes: string) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -18,8 +23,20 @@ function formatDuration(seconds: number): string {
 
 // The reward moment the loop used to lack: shown once on Finish, before
 // returning Home. Pure display; the session is already finished and queued.
-export default function SessionSummary({ routineName, durationSeconds, summary, onDone }: Props) {
+export default function SessionSummary({ routineName, durationSeconds, summary, onDone, onSaveNotes }: Props) {
   const { settings } = useSettings();
+  const [notes, setNotes] = useState('');
+  const submittedRef = useRef(false);
+  const latestRef = useRef({ notes, onSaveNotes });
+  latestRef.current = { notes, onSaveNotes };
+
+  // A back-swipe unmounts the overlay without tapping Done; don't let a
+  // typed note vanish with it.
+  useEffect(() => () => {
+    const { notes: pending, onSaveNotes: save } = latestRef.current;
+    if (!submittedRef.current && pending.trim()) save(pending.trim());
+  }, []);
+
   return (
     <div className="summary-overlay">
       <div className="summary-card">
@@ -57,7 +74,21 @@ export default function SessionSummary({ routineName, durationSeconds, summary, 
           ))}
         </div>
 
-        <button className="btn-primary mt-16" onClick={onDone}>
+        <textarea
+          className="mt-16"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Notes: how did it go? Any niggles?"
+          rows={3}
+        />
+
+        <button
+          className="btn-primary mt-16"
+          onClick={() => {
+            submittedRef.current = true;
+            onDone(notes.trim());
+          }}
+        >
           Done
         </button>
       </div>
