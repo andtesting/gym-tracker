@@ -1,4 +1,5 @@
 export interface ExportRow {
+  // Local calendar date of the session (localDateKey), not the UTC split.
   date: string;
   routine: string;
   exercise: string;
@@ -9,9 +10,19 @@ export interface ExportRow {
   rest_seconds: number | null;
   started_at: string | null;
   completed_at: string | null;
+  session_id: string;
+  session_started_at: string;
+  session_finished_at: string | null;
+  session_notes: string | null;
 }
 
-const CSV_HEADERS = ['date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg', 'set_duration_seconds', 'rest_seconds', 'started_at', 'completed_at'] as const;
+// Original ten columns first so existing downstream consumers keep working;
+// session identity columns appended.
+const CSV_HEADERS = [
+  'date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg',
+  'set_duration_seconds', 'rest_seconds', 'started_at', 'completed_at',
+  'session_id', 'session_started_at', 'session_finished_at', 'session_notes',
+] as const;
 
 function escapeCSV(value: string | number | null): string {
   if (value === null) return '';
@@ -31,8 +42,12 @@ export function toCSV(rows: ExportRow[]): string {
 }
 
 interface ExportSession {
+  session_id: string;
   date: string;
   routine: string;
+  started_at: string;
+  finished_at: string | null;
+  notes: string | null;
   exercises: {
     name: string;
     sets: {
@@ -51,11 +66,18 @@ export function toJSON(rows: ExportRow[]): string {
   const sessionMap = new Map<string, ExportSession>();
 
   for (const row of rows) {
-    const key = `${row.date}|${row.routine}`;
-    if (!sessionMap.has(key)) {
-      sessionMap.set(key, { date: row.date, routine: row.routine, exercises: [] });
+    if (!sessionMap.has(row.session_id)) {
+      sessionMap.set(row.session_id, {
+        session_id: row.session_id,
+        date: row.date,
+        routine: row.routine,
+        started_at: row.session_started_at,
+        finished_at: row.session_finished_at,
+        notes: row.session_notes,
+        exercises: [],
+      });
     }
-    const session = sessionMap.get(key)!;
+    const session = sessionMap.get(row.session_id)!;
     let exercise = session.exercises.find(e => e.name === row.exercise);
     if (!exercise) {
       exercise = { name: row.exercise, sets: [] };
