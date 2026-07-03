@@ -12,6 +12,7 @@ import {
 import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
 import { summariseWorkout } from '../lib/summary';
+import { DEFAULT_REST_TARGET_SECONDS } from '../lib/timer';
 import type { WorkoutSummary } from '../lib/summary';
 import { pushOutbox } from '../lib/outbox';
 import { useSettings } from '../hooks/useSettings';
@@ -251,7 +252,11 @@ export default function ActiveWorkout({
         <TimerDisplay
           mode={timer.mode}
           elapsed={timer.elapsed}
-          restTargetSeconds={activeExercise?.template?.target_rest_seconds ?? null}
+          restTargetSeconds={
+            settings.restCountdown
+              ? activeExercise?.template?.target_rest_seconds ?? DEFAULT_REST_TARGET_SECONDS
+              : null
+          }
         />
       )}
 

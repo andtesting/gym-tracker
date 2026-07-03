@@ -7,6 +7,9 @@ export interface Settings {
   // Quick-adjust chip steps, in the user's display unit.
   stepSmall: number;
   stepLarge: number;
+  // Rest counts down against the exercise's rest target (120s default when
+  // the exercise has none). Off = count up, going loud past 3 minutes.
+  restCountdown: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -14,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   unit: 'kg',
   stepSmall: 1,
   stepLarge: 2.5,
+  restCountdown: false,
 };
 
 // Keyed per user id so profiles on a shared device keep their own settings;
