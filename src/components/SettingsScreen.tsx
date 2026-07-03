@@ -75,6 +75,28 @@ export default function SettingsScreen({ onBack }: Props) {
       </div>
 
       <div className="settings-section">
+        <h3 className="mb-16">Rest timer</h3>
+        <div className="toggle-group">
+          <button
+            className={!settings.restCountdown ? 'active' : ''}
+            onClick={() => update({ restCountdown: false })}
+          >
+            Count up
+          </button>
+          <button
+            className={settings.restCountdown ? 'active' : ''}
+            onClick={() => update({ restCountdown: true })}
+          >
+            Countdown
+          </button>
+        </div>
+        <p className="text-small text-muted mt-8">
+          Countdown runs from each exercise&apos;s rest target (120s when it has none).
+          Count up turns red past 3:00.
+        </p>
+      </div>
+
+      <div className="settings-section">
         <h3 className="mb-16">Quick adjust steps</h3>
         <div className="row">
           <div style={{ flex: 1 }}>

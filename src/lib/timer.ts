@@ -42,6 +42,14 @@ function formatMmSs(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// Countdown target when the rest-countdown setting is on but the active
+// exercise has no target_rest_seconds of its own.
+export const DEFAULT_REST_TARGET_SECONDS = 120;
+
+// In count-up mode, rest past this reads as "you forgot the timer" and the
+// display goes large/bold/red.
+export const REST_ALARM_SECONDS = 180;
+
 // Rest countdown against a per-exercise target (AND-6). `over` flips the
 // display style once the target is exhausted; text keeps counting so the
 // overshoot is visible rather than clamped away.

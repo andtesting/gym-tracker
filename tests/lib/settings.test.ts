@@ -11,8 +11,8 @@ describe('settings', () => {
   });
 
   it('round-trips per user', () => {
-    saveSettings('user-1', { theme: 'dark', unit: 'lb', stepSmall: 2, stepLarge: 5 });
-    expect(loadSettings('user-1')).toEqual({ theme: 'dark', unit: 'lb', stepSmall: 2, stepLarge: 5 });
+    saveSettings('user-1', { theme: 'dark', unit: 'lb', stepSmall: 2, stepLarge: 5, restCountdown: true });
+    expect(loadSettings('user-1')).toEqual({ theme: 'dark', unit: 'lb', stepSmall: 2, stepLarge: 5, restCountdown: true });
     expect(loadSettings('user-2')).toEqual(DEFAULT_SETTINGS);
   });
 
