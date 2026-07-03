@@ -5,6 +5,7 @@ import { createSet, updateSet, deleteSet } from '../api/sets';
 import type { Exercise, SetWithExercise } from '../types';
 import { formatRest } from '../lib/timer';
 import ExerciseSearch from './ExerciseSearch';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   sessionId: string;
@@ -28,13 +29,22 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [pendingReps, setPendingReps] = useState('10');
   const [pendingWeight, setPendingWeight] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
-    fetchSessionSets(sessionId)
-      .then(setSets)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [sessionId]);
+    let cancelled = false;
+    function load() {
+      setLoading(true);
+      fetchSessionSets(sessionId)
+        .then(data => { if (!cancelled) setSets(data); })
+        .catch(() => {
+          if (!cancelled) toast('Failed to load session.', { label: 'Retry', onClick: load });
+        })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [sessionId, toast]);
 
   const grouped: ExerciseGroup[] = [];
   for (const set of sets) {

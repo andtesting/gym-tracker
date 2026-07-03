@@ -3,6 +3,7 @@ import { fetchRoutines, createRoutine } from '../api/routines';
 import { createSession } from '../api/sessions';
 import { saveActiveWorkout } from '../lib/sessionPersistence';
 import type { Routine, Screen } from '../types';
+import { useToast } from '../hooks/useToast';
 
 interface Props {
   onNavigate: (screen: Screen) => void;
@@ -14,13 +15,14 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
   const [newName, setNewName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     fetchRoutines()
       .then(setRoutines)
-      .catch(() => {})
+      .catch(() => toast('Failed to load routines.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [toast]);
 
   async function handleSelectRoutine(routine: Routine) {
     setCreating(true);
@@ -34,6 +36,7 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
       saveActiveWorkout(workout);
       onNavigate({ name: 'activeWorkout', ...workout });
     } catch {
+      toast('Failed to start workout.');
       setCreating(false);
     }
   }
@@ -48,6 +51,7 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
       setNewName('');
       setShowAdd(false);
     } catch {
+      toast('Failed to create routine.');
     } finally {
       setCreating(false);
     }

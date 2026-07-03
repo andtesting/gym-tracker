@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchRecentSessions, fetchSessionSets, fetchHeatmapSessions } from '../api/sessions';
+import { fetchRecentSessions, fetchHeatmapSessions, fetchExportSets } from '../api/sessions';
 import { signOut } from '../hooks/useAuth';
 import { saveActiveWorkout } from '../lib/sessionPersistence';
 import { toCSV, toJSON } from '../lib/export';
@@ -50,25 +50,23 @@ export default function HomeScreen({ onNavigate }: Props) {
   }, []);
 
   async function handleExport(format: 'csv' | 'json') {
-    const allSessions = await fetchRecentSessions(1000);
-    const rows: ExportRow[] = [];
-    for (const session of allSessions) {
-      const sets = await fetchSessionSets(session.id);
-      for (const set of sets) {
-        rows.push({
-          date: session.started_at.split('T')[0],
-          routine: session.routines?.name ?? 'Unnamed Routine',
-          exercise: set.exercises?.name ?? 'Unnamed Exercise',
-          set_type: set.set_type,
-          reps: set.reps,
-          weight_kg: set.weight_kg,
-          set_duration_seconds: set.set_duration_seconds,
-          rest_seconds: set.rest_seconds,
-          started_at: set.started_at,
-          completed_at: set.completed_at,
-        });
-      }
-    }
+    const exportSets = await fetchExportSets();
+    const rows: ExportRow[] = exportSets.map(set => ({
+      date: localDateKey(set.sessions.started_at),
+      routine: set.sessions.routines?.name ?? 'Unnamed Routine',
+      exercise: set.exercises?.name ?? 'Unnamed Exercise',
+      set_type: set.set_type,
+      reps: set.reps,
+      weight_kg: set.weight_kg,
+      set_duration_seconds: set.set_duration_seconds,
+      rest_seconds: set.rest_seconds,
+      started_at: set.started_at,
+      completed_at: set.completed_at,
+      session_id: set.sessions.id,
+      session_started_at: set.sessions.started_at,
+      session_finished_at: set.sessions.finished_at,
+      session_notes: set.sessions.notes,
+    }));
 
     const content = format === 'csv' ? toCSV(rows) : toJSON(rows);
     const blob = new Blob([content], { type: format === 'csv' ? 'text/csv' : 'application/json' });

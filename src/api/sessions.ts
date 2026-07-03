@@ -32,6 +32,16 @@ export async function createSession(routineId: string, startedAt?: string): Prom
   return data;
 }
 
+export async function fetchSession(sessionId: string): Promise<Session | null> {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function finishSession(sessionId: string, finishedAt?: string): Promise<void> {
   const { error } = await supabase
     .from('sessions')
@@ -78,6 +88,45 @@ export async function fetchLastSession(routineId: string): Promise<LastSessionDa
   if (setsErr) throw setsErr;
 
   return { session, sets };
+}
+
+export interface ExportSetRow {
+  set_order: number;
+  set_type: 'warmup' | 'working';
+  reps: number;
+  weight_kg: number;
+  set_duration_seconds: number | null;
+  rest_seconds: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  sessions: {
+    id: string;
+    started_at: string;
+    finished_at: string | null;
+    notes: string | null;
+    routines: { name: string } | null;
+  };
+  exercises: { name: string } | null;
+}
+
+// Every set with its session context in ONE request (the previous export did
+// one request per session). PostgREST can't order outer rows by a referenced
+// table's column, so ordering happens client-side: sessions newest first,
+// sets in set_order within a session.
+export async function fetchExportSets(): Promise<ExportSetRow[]> {
+  const { data, error } = await supabase
+    .from('sets')
+    .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)');
+  if (error) throw error;
+  const rows = data as unknown as ExportSetRow[];
+  rows.sort((a, b) => {
+    const cmp = b.sessions.started_at.localeCompare(a.sessions.started_at);
+    if (cmp !== 0) return cmp;
+    const idCmp = a.sessions.id.localeCompare(b.sessions.id);
+    if (idCmp !== 0) return idCmp;
+    return a.set_order - b.set_order;
+  });
+  return rows;
 }
 
 export async function fetchHeatmapSessions(startDate: string, endDate: string): Promise<HeatmapSession[]> {
