@@ -3,7 +3,16 @@ import { buildDisplayGroups } from '../../src/lib/setGroups';
 import type { Exercise, SetWithExercise } from '../../src/types';
 
 function makeExercise(id: string, name: string): Exercise {
-  return { id, name, muscle_group_id: null, muscle_groups: null, created_at: '2026-01-01T00:00:00Z' };
+  return {
+    id,
+    name,
+    muscle_group_id: null,
+    muscle_groups: null,
+    equipment: null,
+    is_bodyweight: false,
+    secondary_muscle_group_ids: [],
+    created_at: '2026-01-01T00:00:00Z',
+  };
 }
 
 function makeSet(exerciseId: string, name: string, order: number, groupId: string | null = null): SetWithExercise {

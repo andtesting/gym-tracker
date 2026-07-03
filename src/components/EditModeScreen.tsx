@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchRoutines, createRoutine, updateRoutine, deleteRoutine } from '../api/routines';
 import { fetchExercises, updateExercise, deleteExercise } from '../api/exercises';
@@ -23,6 +23,15 @@ export default function EditModeScreen({ onBack }: Props) {
   const [groups, setGroups] = useState<MuscleGroup[]>([]);
   const [colourPickerFor, setColourPickerFor] = useState<string | null>(null);
   const [musclePickerFor, setMusclePickerFor] = useState<string | null>(null);
+  // Exercise metadata panel (equipment / bodyweight / secondary muscles).
+  const [metaFor, setMetaFor] = useState<string | null>(null);
+  // Mirror of `exercises` for the metadata mutators: rapid chip taps fire
+  // before the re-render, so a render-time closure would recompute the
+  // secondary array from stale data and drop the earlier tap's write.
+  const exercisesRef = useRef(exercises);
+  useEffect(() => {
+    exercisesRef.current = exercises;
+  }, [exercises]);
   const [newRoutineName, setNewRoutineName] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [confirm, setConfirm] = useState<{ title: string; message: string; label: string; action: () => void } | null>(null);
@@ -174,14 +183,74 @@ export default function EditModeScreen({ onBack }: Props) {
   }
 
   async function handleExerciseMuscleChange(exerciseId: string, muscleGroupId: string) {
-    await updateExercise(exerciseId, { muscle_group_id: muscleGroupId });
+    // The new primary must leave the secondary list, or it becomes an
+    // invisible un-toggleable entry (the chips exclude the primary) that
+    // Layer 2 would double-count.
+    const ex = exercisesRef.current.find(e => e.id === exerciseId);
+    const secondaries = (ex?.secondary_muscle_group_ids ?? []).filter(id => id !== muscleGroupId);
+    await updateExercise(exerciseId, {
+      muscle_group_id: muscleGroupId,
+      secondary_muscle_group_ids: secondaries,
+    });
     const group = groups.find(g => g.id === muscleGroupId) ?? null;
     setExercises(prev =>
       prev.map(e =>
-        e.id === exerciseId ? { ...e, muscle_group_id: muscleGroupId, muscle_groups: group } : e,
+        e.id === exerciseId
+          ? { ...e, muscle_group_id: muscleGroupId, muscle_groups: group, secondary_muscle_group_ids: secondaries }
+          : e,
       ),
     );
     setMusclePickerFor(null);
+  }
+
+  async function handleEquipmentChange(id: string, raw: string) {
+    const value = raw.trim() === '' ? null : raw.trim();
+    const current = exercises.find(e => e.id === id);
+    if (!current || (current.equipment ?? null) === value) return;
+    try {
+      await updateExercise(id, { equipment: value });
+      setExercises(prev => prev.map(e => (e.id === id ? { ...e, equipment: value } : e)));
+    } catch {
+      toast('Failed to save equipment.');
+    }
+  }
+
+  // Optimistic: state (and the ref mirror) update synchronously from the
+  // freshest copy so consecutive taps compose; the server write follows and
+  // a failure resyncs from the server rather than guessing a revert.
+  async function handleBodyweightToggle(exId: string) {
+    const ex = exercisesRef.current.find(e => e.id === exId);
+    if (!ex) return;
+    const value = !ex.is_bodyweight;
+    const next = exercisesRef.current.map(e => (e.id === exId ? { ...e, is_bodyweight: value } : e));
+    exercisesRef.current = next;
+    setExercises(next);
+    try {
+      await updateExercise(exId, { is_bodyweight: value });
+    } catch {
+      toast('Failed to save bodyweight flag.');
+      fetchExercises().then(setExercises).catch(() => {});
+    }
+  }
+
+  async function handleSecondaryToggle(exId: string, groupId: string) {
+    const ex = exercisesRef.current.find(e => e.id === exId);
+    if (!ex) return;
+    const current = ex.secondary_muscle_group_ids ?? [];
+    const value = current.includes(groupId)
+      ? current.filter(id => id !== groupId)
+      : [...current, groupId];
+    const next = exercisesRef.current.map(e =>
+      e.id === exId ? { ...e, secondary_muscle_group_ids: value } : e,
+    );
+    exercisesRef.current = next;
+    setExercises(next);
+    try {
+      await updateExercise(exId, { secondary_muscle_group_ids: value });
+    } catch {
+      toast('Failed to save secondary muscles.');
+      fetchExercises().then(setExercises).catch(() => {});
+    }
   }
 
   function handleDeleteExercise(id: string) {
@@ -247,6 +316,100 @@ export default function EditModeScreen({ onBack }: Props) {
     const group = await createMuscleGroup(trimmed, groups.length + 1);
     setGroups(prev => [...prev, group]);
     setNewGroupName('');
+  }
+
+  // One renderer for grouped and ungrouped exercise rows (they only differed
+  // by badge label, which reads from the exercise anyway).
+  function renderExerciseRow(ex: Exercise) {
+    return (
+      <div key={ex.id}>
+        <div className="edit-row">
+          <input
+            className="edit-input"
+            defaultValue={ex.name}
+            onBlur={e => {
+              const val = e.target.value.trim();
+              if (val && val !== ex.name) handleExerciseNameChange(ex.id, val);
+            }}
+          />
+          <button
+            className="muscle-badge"
+            onClick={() => setMusclePickerFor(musclePickerFor === ex.id ? null : ex.id)}
+          >
+            {ex.muscle_groups?.name ?? 'Other'}
+          </button>
+          <button
+            className="btn-small btn-secondary"
+            style={{ minHeight: 0, padding: '4px 8px' }}
+            onClick={() => setMetaFor(metaFor === ex.id ? null : ex.id)}
+          >
+            More
+          </button>
+          <button
+            className="btn-small"
+            style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: '4px 8px' }}
+            onClick={() => handleDeleteExercise(ex.id)}
+          >
+            Delete
+          </button>
+        </div>
+        {musclePickerFor === ex.id && (
+          <div style={{ padding: '8px 0' }}>
+            <MuscleGroupPicker
+              groups={sortedGroups}
+              selected={ex.muscle_group_id}
+              onSelect={gid => handleExerciseMuscleChange(ex.id, gid)}
+              onCreateGroup={async name => {
+                const g = await createMuscleGroup(name, groups.length + 1);
+                setGroups(prev => [...prev, g]);
+                return g;
+              }}
+            />
+          </div>
+        )}
+        {metaFor === ex.id && (
+          <div className="exercise-meta">
+            <label className="exercise-meta-label">
+              Equipment
+              <input
+                type="text"
+                defaultValue={ex.equipment ?? ''}
+                placeholder="e.g. barbell, cable, machine"
+                onBlur={e => handleEquipmentChange(ex.id, e.target.value)}
+              />
+            </label>
+            <div className="exercise-meta-chips">
+              <button
+                className={`meta-chip ${ex.is_bodyweight ? 'qc-chip-active' : ''}`}
+                onClick={() => handleBodyweightToggle(ex.id)}
+                aria-pressed={ex.is_bodyweight}
+              >
+                Bodyweight
+              </button>
+            </div>
+            <span className="exercise-meta-label">Also hits</span>
+            <div className="exercise-meta-chips">
+              {sortedGroups.filter(g => g.id !== ex.muscle_group_id).map(g => {
+                const active = (ex.secondary_muscle_group_ids ?? []).includes(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    className={`meta-chip ${active ? 'qc-chip-active' : ''}`}
+                    onClick={() => handleSecondaryToggle(ex.id, g.id)}
+                    aria-pressed={active}
+                  >
+                    {g.name}
+                  </button>
+                );
+              })}
+              {sortedGroups.filter(g => g.id !== ex.muscle_group_id).length === 0 && (
+                <span className="text-small text-muted">No other muscle groups yet.</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   const exercisesByGroup = new Map<string, Exercise[]>();
@@ -415,49 +578,7 @@ export default function EditModeScreen({ onBack }: Props) {
               <h3 className="text-muted text-small mb-16" style={{ textTransform: 'uppercase' }}>
                 {group.name}
               </h3>
-              {exs.map(ex => (
-                <div key={ex.id}>
-                  <div className="edit-row">
-                    <input
-                      className="edit-input"
-                      defaultValue={ex.name}
-                      onBlur={e => {
-                        const val = e.target.value.trim();
-                        if (val && val !== ex.name) handleExerciseNameChange(ex.id, val);
-                      }}
-                    />
-                    <button
-                      className="muscle-badge"
-                      onClick={() =>
-                        setMusclePickerFor(musclePickerFor === ex.id ? null : ex.id)
-                      }
-                    >
-                      {ex.muscle_groups?.name ?? 'Other'}
-                    </button>
-                    <button
-                      className="btn-small"
-                      style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: '4px 8px' }}
-                      onClick={() => handleDeleteExercise(ex.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  {musclePickerFor === ex.id && (
-                    <div style={{ padding: '8px 0' }}>
-                      <MuscleGroupPicker
-                        groups={sortedGroups}
-                        selected={ex.muscle_group_id}
-                        onSelect={gid => handleExerciseMuscleChange(ex.id, gid)}
-                        onCreateGroup={async name => {
-                          const g = await createMuscleGroup(name, groups.length + 1);
-                          setGroups(prev => [...prev, g]);
-                          return g;
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+              {exs.map(renderExerciseRow)}
             </div>
           );
         })}
@@ -466,49 +587,7 @@ export default function EditModeScreen({ onBack }: Props) {
             <h3 className="text-muted text-small mb-16" style={{ textTransform: 'uppercase' }}>
               Other
             </h3>
-            {ungroupedExercises.map(ex => (
-              <div key={ex.id}>
-                <div className="edit-row">
-                  <input
-                    className="edit-input"
-                    defaultValue={ex.name}
-                    onBlur={e => {
-                      const val = e.target.value.trim();
-                      if (val && val !== ex.name) handleExerciseNameChange(ex.id, val);
-                    }}
-                  />
-                  <button
-                    className="muscle-badge"
-                    onClick={() =>
-                      setMusclePickerFor(musclePickerFor === ex.id ? null : ex.id)
-                    }
-                  >
-                    Other
-                  </button>
-                  <button
-                    className="btn-small"
-                    style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: '4px 8px' }}
-                    onClick={() => handleDeleteExercise(ex.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-                {musclePickerFor === ex.id && (
-                  <div style={{ padding: '8px 0' }}>
-                    <MuscleGroupPicker
-                      groups={sortedGroups}
-                      selected={ex.muscle_group_id}
-                      onSelect={gid => handleExerciseMuscleChange(ex.id, gid)}
-                      onCreateGroup={async name => {
-                        const g = await createMuscleGroup(name, groups.length + 1);
-                        setGroups(prev => [...prev, g]);
-                        return g;
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+            {ungroupedExercises.map(renderExerciseRow)}
           </div>
         )}
       </div>

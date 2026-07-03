@@ -394,6 +394,40 @@ input:focus, select:focus, textarea:focus {
   color: var(--color-border);
   cursor: default;
 }
+.exercise-meta {
+  padding: 8px 0 12px 12px;
+  border-left: 2px solid var(--color-border);
+  margin: 4px 0 8px;
+}
+.exercise-meta-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.exercise-meta-label input {
+  min-height: 32px;
+  padding: 4px 6px;
+  font-size: 0.875rem;
+}
+.exercise-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.meta-chip {
+  min-height: 32px;
+  padding: 4px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
 .plan-editor {
   padding: 8px 0 12px 12px;
   border-left: 2px solid var(--color-border);
