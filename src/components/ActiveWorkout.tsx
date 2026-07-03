@@ -247,7 +247,13 @@ export default function ActiveWorkout({
         </div>
       </div>
 
-      {!retroactive && <TimerDisplay mode={timer.mode} elapsed={timer.elapsed} />}
+      {!retroactive && (
+        <TimerDisplay
+          mode={timer.mode}
+          elapsed={timer.elapsed}
+          restTargetSeconds={activeExercise?.template?.target_rest_seconds ?? null}
+        />
+      )}
 
       <ExerciseSearch onSelect={workout.addExercise} primaryMuscleGroupId={primaryMuscleGroupId} />
 
@@ -308,6 +314,20 @@ export default function ActiveWorkout({
                       ) : (
                         <span className="text-small text-muted">No prior history</span>
                       )}
+                      {(() => {
+                        const t = entry.template;
+                        if (!t) return null;
+                        const parts: string[] = [];
+                        if (t.target_sets != null || t.target_reps != null) {
+                          parts.push(`${t.target_sets ?? '?'}×${t.target_reps ?? '?'}`);
+                        }
+                        if (t.target_weight_kg != null) {
+                          parts.push(`${formatWeight(t.target_weight_kg, settings.unit)} ${unitLabel(settings.unit)}`);
+                        }
+                        if (t.target_rest_seconds != null) parts.push(`rest ${t.target_rest_seconds}s`);
+                        if (parts.length === 0) return null;
+                        return <span className="text-small text-muted">Target: {parts.join(' · ')}</span>;
+                      })()}
                     </button>
                     <div className="row" style={{ gap: 2, flexShrink: 0 }}>
                       <button

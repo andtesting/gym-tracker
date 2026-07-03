@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { createTimer, startRest, startSet, stopTimer, getElapsed, formatRest } from '../../src/lib/timer';
+import { createTimer, startRest, startSet, stopTimer, getElapsed, formatRest, restCountdown } from '../../src/lib/timer';
+
+describe('restCountdown', () => {
+  it('counts down while under target', () => {
+    expect(restCountdown(0, 90)).toEqual({ text: '1:30 left', over: false });
+    expect(restCountdown(45, 90)).toEqual({ text: '0:45 left', over: false });
+  });
+
+  it('reads 0:00 left at exactly the target', () => {
+    expect(restCountdown(90, 90)).toEqual({ text: '0:00 left', over: false });
+  });
+
+  it('counts the overshoot instead of clamping', () => {
+    expect(restCountdown(105, 90)).toEqual({ text: '0:15 over', over: true });
+    expect(restCountdown(210, 90)).toEqual({ text: '2:00 over', over: true });
+  });
+});
 
 describe('timer', () => {
   it('starts in idle mode with no elapsed time', () => {

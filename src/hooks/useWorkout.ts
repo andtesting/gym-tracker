@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchLastSession, fetchSessionSets, fetchExerciseHistories } from '../api/sessions';
+import { fetchRoutineExercises } from '../api/routineExercises';
 import { pushOutbox } from '../lib/outbox';
+import { cachedFetch } from '../lib/cache';
+import { buildPlan } from '../lib/plan';
 import { loadActiveWorkout, updateActiveWorkout } from '../lib/sessionPersistence';
 import { useToast } from './useToast';
-import type { Exercise, WorkoutSet, SetWithExercise, ExerciseHistoryEntry } from '../types';
+import type { Exercise, RoutineExercise, WorkoutSet, SetWithExercise, ExerciseHistoryEntry } from '../types';
 
 export interface ActiveExercise {
   exercise: Exercise;
@@ -11,6 +14,9 @@ export interface ActiveExercise {
   // Cross-routine prior performances of this exercise across ALL routines,
   // newest first. Index 0 is the most recent; the SetLogger pages through them.
   histories: ExerciseHistoryEntry[];
+  // Routine template row for this exercise, when one exists: target sets/reps/
+  // weight for the plan view and target_rest_seconds for the rest countdown.
+  template: RoutineExercise | null;
 }
 
 interface UseWorkoutOptions {
@@ -61,6 +67,15 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       return null;
     });
 
+    // Template rows use the reference-list cache so a planned routine still
+    // renders its plan offline; a routine without a template resolves to [].
+    const templatesPromise = cachedFetch(`routine-exercises-${routineId}`, () =>
+      fetchRoutineExercises(routineId),
+    ).catch((e) => {
+      console.error('Failed to fetch routine template:', e);
+      return [];
+    });
+
     // The local record is authoritative for the current session's sets while
     // a workout is active: it works offline and it is fresher than the server
     // whenever the outbox still holds unsynced writes.
@@ -70,39 +85,26 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       ? Promise.resolve(localSets)
       : fetchSessionSets(sessionId);
 
-    Promise.all([lastSamePromise, setsPromise])
-      .then(async ([lastSameRoutine, currentSets]) => {
-        // Build ordered list: current-session exercises first (in set_order),
-        // then pre-populate any leftover exercises from the most recent
-        // same-routine session that we haven't touched yet.
+    Promise.all([lastSamePromise, setsPromise, templatesPromise])
+      .then(async ([lastSameRoutine, currentSets, templates]) => {
+        // Ordered plan: current-session exercises, then untouched template
+        // rows, then leftover exercises from the last same-routine session
+        // (see lib/plan.ts).
+        const plan = buildPlan(currentSets, templates, lastSameRoutine?.sets ?? []);
         const exerciseMap = new Map<string, ActiveExercise>();
         const exerciseOrder: string[] = [];
-
-        for (const set of currentSets) {
-          if (!set.exercise_id || !set.exercises) continue;
-          if (!exerciseMap.has(set.exercise_id)) {
-            exerciseMap.set(set.exercise_id, {
-              exercise: set.exercises,
-              sets: [],
-              histories: [],
-            });
-            exerciseOrder.push(set.exercise_id);
-          }
-          exerciseMap.get(set.exercise_id)!.sets.push(set);
+        for (const entry of plan) {
+          exerciseMap.set(entry.exercise.id, {
+            exercise: entry.exercise,
+            sets: [],
+            histories: [],
+            template: entry.template,
+          });
+          exerciseOrder.push(entry.exercise.id);
         }
-
-        if (lastSameRoutine) {
-          for (const set of lastSameRoutine.sets) {
-            if (!set.exercise_id || !set.exercises) continue;
-            if (!exerciseMap.has(set.exercise_id)) {
-              exerciseMap.set(set.exercise_id, {
-                exercise: set.exercises,
-                sets: [],
-                histories: [],
-              });
-              exerciseOrder.push(set.exercise_id);
-            }
-          }
+        for (const set of currentSets) {
+          if (!set.exercise_id) continue;
+          exerciseMap.get(set.exercise_id)?.sets.push(set);
         }
 
         // Cross-routine history (AND-25/31): prior performances of each exercise
@@ -156,7 +158,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
         setActiveIndex(existing);
         return prev;
       }
-      const next = [...prev, { exercise, sets: [], histories: [] }];
+      const next = [...prev, { exercise, sets: [], histories: [], template: null }];
       // Lazy-load history for the newly added exercise.
       fetchExerciseHistories([exercise.id])
         .then(map => {

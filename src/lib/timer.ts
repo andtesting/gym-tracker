@@ -35,3 +35,21 @@ export function formatRest(seconds: number | null | undefined): string {
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+function formatMmSs(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// Rest countdown against a per-exercise target (AND-6). `over` flips the
+// display style once the target is exhausted; text keeps counting so the
+// overshoot is visible rather than clamped away.
+export function restCountdown(
+  elapsed: number,
+  targetSeconds: number,
+): { text: string; over: boolean } {
+  const remaining = targetSeconds - elapsed;
+  if (remaining >= 0) return { text: `${formatMmSs(remaining)} left`, over: false };
+  return { text: `${formatMmSs(-remaining)} over`, over: true };
+}

@@ -20,6 +20,24 @@ export interface Exercise {
   created_at: string;
 }
 
+// Routine template row: the planned shape of a routine, independent of
+// history. Also the Layer 2 coach's write-back surface (LAYER2_PLAN.md).
+export interface RoutineExercise {
+  id: string;
+  routine_id: string;
+  exercise_id: string;
+  sort_order: number;
+  target_sets: number | null;
+  target_reps: number | null;
+  target_weight_kg: number | null;
+  target_rest_seconds: number | null;
+  created_at: string;
+}
+
+export interface RoutineExerciseWithExercise extends RoutineExercise {
+  exercises: Exercise | null;
+}
+
 export interface Session {
   id: string;
   routine_id: string | null;
