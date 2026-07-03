@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchRoutines, createRoutine, updateRoutine, deleteRoutine } from '../api/routines';
 import { fetchExercises, updateExercise, deleteExercise } from '../api/exercises';
@@ -25,6 +25,13 @@ export default function EditModeScreen({ onBack }: Props) {
   const [musclePickerFor, setMusclePickerFor] = useState<string | null>(null);
   // Exercise metadata panel (equipment / bodyweight / secondary muscles).
   const [metaFor, setMetaFor] = useState<string | null>(null);
+  // Mirror of `exercises` for the metadata mutators: rapid chip taps fire
+  // before the re-render, so a render-time closure would recompute the
+  // secondary array from stale data and drop the earlier tap's write.
+  const exercisesRef = useRef(exercises);
+  useEffect(() => {
+    exercisesRef.current = exercises;
+  }, [exercises]);
   const [newRoutineName, setNewRoutineName] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [confirm, setConfirm] = useState<{ title: string; message: string; label: string; action: () => void } | null>(null);
@@ -176,11 +183,21 @@ export default function EditModeScreen({ onBack }: Props) {
   }
 
   async function handleExerciseMuscleChange(exerciseId: string, muscleGroupId: string) {
-    await updateExercise(exerciseId, { muscle_group_id: muscleGroupId });
+    // The new primary must leave the secondary list, or it becomes an
+    // invisible un-toggleable entry (the chips exclude the primary) that
+    // Layer 2 would double-count.
+    const ex = exercisesRef.current.find(e => e.id === exerciseId);
+    const secondaries = (ex?.secondary_muscle_group_ids ?? []).filter(id => id !== muscleGroupId);
+    await updateExercise(exerciseId, {
+      muscle_group_id: muscleGroupId,
+      secondary_muscle_group_ids: secondaries,
+    });
     const group = groups.find(g => g.id === muscleGroupId) ?? null;
     setExercises(prev =>
       prev.map(e =>
-        e.id === exerciseId ? { ...e, muscle_group_id: muscleGroupId, muscle_groups: group } : e,
+        e.id === exerciseId
+          ? { ...e, muscle_group_id: muscleGroupId, muscle_groups: group, secondary_muscle_group_ids: secondaries }
+          : e,
       ),
     );
     setMusclePickerFor(null);
@@ -198,28 +215,41 @@ export default function EditModeScreen({ onBack }: Props) {
     }
   }
 
-  async function handleBodyweightToggle(ex: Exercise) {
+  // Optimistic: state (and the ref mirror) update synchronously from the
+  // freshest copy so consecutive taps compose; the server write follows and
+  // a failure resyncs from the server rather than guessing a revert.
+  async function handleBodyweightToggle(exId: string) {
+    const ex = exercisesRef.current.find(e => e.id === exId);
+    if (!ex) return;
     const value = !ex.is_bodyweight;
+    const next = exercisesRef.current.map(e => (e.id === exId ? { ...e, is_bodyweight: value } : e));
+    exercisesRef.current = next;
+    setExercises(next);
     try {
-      await updateExercise(ex.id, { is_bodyweight: value });
-      setExercises(prev => prev.map(e => (e.id === ex.id ? { ...e, is_bodyweight: value } : e)));
+      await updateExercise(exId, { is_bodyweight: value });
     } catch {
       toast('Failed to save bodyweight flag.');
+      fetchExercises().then(setExercises).catch(() => {});
     }
   }
 
-  async function handleSecondaryToggle(ex: Exercise, groupId: string) {
+  async function handleSecondaryToggle(exId: string, groupId: string) {
+    const ex = exercisesRef.current.find(e => e.id === exId);
+    if (!ex) return;
     const current = ex.secondary_muscle_group_ids ?? [];
     const value = current.includes(groupId)
       ? current.filter(id => id !== groupId)
       : [...current, groupId];
+    const next = exercisesRef.current.map(e =>
+      e.id === exId ? { ...e, secondary_muscle_group_ids: value } : e,
+    );
+    exercisesRef.current = next;
+    setExercises(next);
     try {
-      await updateExercise(ex.id, { secondary_muscle_group_ids: value });
-      setExercises(prev =>
-        prev.map(e => (e.id === ex.id ? { ...e, secondary_muscle_group_ids: value } : e)),
-      );
+      await updateExercise(exId, { secondary_muscle_group_ids: value });
     } catch {
       toast('Failed to save secondary muscles.');
+      fetchExercises().then(setExercises).catch(() => {});
     }
   }
 
@@ -351,7 +381,7 @@ export default function EditModeScreen({ onBack }: Props) {
             <div className="exercise-meta-chips">
               <button
                 className={`meta-chip ${ex.is_bodyweight ? 'qc-chip-active' : ''}`}
-                onClick={() => handleBodyweightToggle(ex)}
+                onClick={() => handleBodyweightToggle(ex.id)}
                 aria-pressed={ex.is_bodyweight}
               >
                 Bodyweight
@@ -365,7 +395,7 @@ export default function EditModeScreen({ onBack }: Props) {
                   <button
                     key={g.id}
                     className={`meta-chip ${active ? 'qc-chip-active' : ''}`}
-                    onClick={() => handleSecondaryToggle(ex, g.id)}
+                    onClick={() => handleSecondaryToggle(ex.id, g.id)}
                     aria-pressed={active}
                   >
                     {g.name}
