@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Screen } from './types';
 import { isSupabaseConfigured } from './supabase';
 import { useAuth } from './hooks/useAuth';
@@ -39,6 +39,39 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [resumeChecked, setResumeChecked] = useState(false);
   const { session, loading, recovery, clearRecovery } = useAuth();
+  const screenRef = useRef(screen);
+
+  // Screen state stays the source of truth; the History API mirrors it one
+  // entry deep so the iOS edge-swipe (browser back) navigates instead of
+  // exiting the PWA (AND-46). The hierarchy is flat: back always means Home.
+  // Leaving Home pushes a single entry; navigating between non-home screens
+  // reuses it; returning Home via the UI consumes it with history.back() so
+  // the stack never grows.
+  const navigate = useCallback((next: Screen) => {
+    const prev = screenRef.current;
+    if (next.name !== 'home' && prev.name === 'home') {
+      history.pushState({ app: true }, '');
+    } else if (next.name === 'home' && prev.name !== 'home') {
+      history.back();
+    }
+    screenRef.current = next;
+    setScreen(next);
+  }, []);
+
+  useEffect(() => {
+    // A reload can land on a previously pushed app entry while screen state
+    // resets to Home; reclaim whatever entry we booted on as the base so the
+    // stack depth matches the screen state again.
+    history.replaceState(null, '');
+    const onPop = () => {
+      // Back gesture from an active workout behaves like the Home button:
+      // the session persists (localStorage + Supabase) and can be resumed.
+      screenRef.current = { name: 'home' };
+      setScreen({ name: 'home' });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   useEffect(() => {
     if (loading || !session || resumeChecked) return;
@@ -49,7 +82,7 @@ export default function App() {
     }
     validatePersistedSession(persisted.sessionId).then(valid => {
       if (valid) {
-        setScreen({
+        navigate({
           name: 'activeWorkout',
           sessionId: persisted.sessionId,
           routineId: persisted.routineId,
@@ -60,7 +93,7 @@ export default function App() {
       }
       setResumeChecked(true);
     });
-  }, [loading, session, resumeChecked]);
+  }, [loading, session, resumeChecked, navigate]);
 
   if (!isSupabaseConfigured) return <SetupScreen />;
   if (loading) return loadingScreen;
@@ -73,34 +106,34 @@ export default function App() {
   return (
     <div className="app">
       {screen.name === 'home' && (
-        <HomeScreen onNavigate={setScreen} />
+        <HomeScreen onNavigate={navigate} />
       )}
       {screen.name === 'sessionDetail' && (
         <SessionDetail
           sessionId={screen.sessionId}
-          onBack={() => setScreen({ name: 'home' })}
+          onBack={() => navigate({ name: 'home' })}
         />
       )}
       {screen.name === 'pickRoutine' && (
-        <PickRoutineScreen onNavigate={setScreen} />
+        <PickRoutineScreen onNavigate={navigate} />
       )}
       {screen.name === 'activeWorkout' && (
         <ActiveWorkout
           sessionId={screen.sessionId}
           routineId={screen.routineId}
           routineName={screen.routineName}
-          onFinish={() => setScreen({ name: 'home' })}
-          onHome={() => setScreen({ name: 'home' })}
+          onFinish={() => navigate({ name: 'home' })}
+          onHome={() => navigate({ name: 'home' })}
         />
       )}
       {screen.name === 'editMode' && (
-        <EditModeScreen onBack={() => setScreen({ name: 'home' })} />
+        <EditModeScreen onBack={() => navigate({ name: 'home' })} />
       )}
       {screen.name === 'trends' && (
-        <TrendsView onBack={() => setScreen({ name: 'home' })} />
+        <TrendsView onBack={() => navigate({ name: 'home' })} />
       )}
       {screen.name === 'logPastWorkout' && (
-        <LogPastWorkoutScreen onNavigate={setScreen} initialDate={screen.date} />
+        <LogPastWorkoutScreen onNavigate={navigate} initialDate={screen.date} />
       )}
       {screen.name === 'retroactiveWorkout' && (
         <ActiveWorkout
@@ -109,8 +142,8 @@ export default function App() {
           routineName={screen.routineName}
           retroactive
           retroactiveDate={screen.date}
-          onFinish={() => setScreen({ name: 'home' })}
-          onHome={() => setScreen({ name: 'home' })}
+          onFinish={() => navigate({ name: 'home' })}
+          onHome={() => navigate({ name: 'home' })}
         />
       )}
     </div>
