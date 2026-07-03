@@ -155,12 +155,30 @@ export async function fetchExportSets(): Promise<ExportSetRow[]> {
 export async function fetchHeatmapSessions(startDate: string, endDate: string): Promise<HeatmapSession[]> {
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, started_at, routines(name, color)')
+    .select('id, routine_id, started_at, routines(name, color)')
     .gte('started_at', startDate)
     .lte('started_at', endDate)
     .order('started_at');
   if (error) throw error;
   return data as unknown as HeatmapSession[];
+}
+
+export interface VolumeSetRow {
+  reps: number;
+  weight_kg: number;
+  sessions: { started_at: string };
+}
+
+// Sets from recent sessions only (home-screen week comparison); bounded by
+// the since filter so it stays a small query.
+export async function fetchRecentVolumeSets(sinceIso: string): Promise<VolumeSetRow[]> {
+  const { data, error } = await supabase
+    .from('sets')
+    .select('reps, weight_kg, sessions!inner(started_at)')
+    .gte('sessions.started_at', sinceIso)
+    .not('sessions.finished_at', 'is', null);
+  if (error) throw error;
+  return data as unknown as VolumeSetRow[];
 }
 
 // Returns up to `maxSessions` most recent finished sessions for each exercise

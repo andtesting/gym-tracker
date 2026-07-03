@@ -68,6 +68,7 @@ export interface RoutineSessionHistory {
 
 export interface HeatmapSession {
   id: string;
+  routine_id: string | null;
   started_at: string;
   routines: { name: string; color: string } | null;
 }
