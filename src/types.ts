@@ -66,6 +66,9 @@ export interface WorkoutSet {
   notes: string | null;
   // Sets sharing a group_id belong to one superset/circuit grouping (AND-10).
   group_id: string | null;
+  // Soft delete: Layer 2 must never silently lose rows it already processed.
+  // Every set-reading query except the export filters .is('deleted_at', null).
+  deleted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;

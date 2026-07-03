@@ -71,6 +71,7 @@ export async function fetchSessionSets(sessionId: string): Promise<SetWithExerci
     .from('sets')
     .select('*, exercises(*, muscle_groups(*))')
     .eq('session_id', sessionId)
+    .is('deleted_at', null)
     .order('set_order');
   if (error) throw error;
   return data;
@@ -92,6 +93,7 @@ export async function fetchLastSession(routineId: string): Promise<LastSessionDa
     .from('sets')
     .select('*, exercises(*, muscle_groups(*))')
     .eq('session_id', session.id)
+    .is('deleted_at', null)
     .order('set_order');
   if (setsErr) throw setsErr;
 
@@ -108,6 +110,7 @@ export interface ExportSetRow {
   rpe: number | null;
   notes: string | null;
   group_id: string | null;
+  deleted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   sessions: {
@@ -143,7 +146,7 @@ export async function fetchExportSets(): Promise<ExportSetRow[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('sets')
-      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, rpe, notes, group_id, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)')
+      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, rpe, notes, group_id, deleted_at, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)')
       .order('id')
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -179,7 +182,8 @@ export async function fetchRecentVolumeSets(sinceIso: string): Promise<VolumeSet
     .from('sets')
     .select('reps, weight_kg, sessions!inner(started_at)')
     .gte('sessions.started_at', sinceIso)
-    .not('sessions.finished_at', 'is', null);
+    .not('sessions.finished_at', 'is', null)
+    .is('deleted_at', null);
   if (error) throw error;
   return data as unknown as VolumeSetRow[];
 }
@@ -202,7 +206,8 @@ export async function fetchExerciseHistories(
     .from('sets')
     .select('*, sessions!inner(*, routines(*))')
     .in('exercise_id', exerciseIds)
-    .not('sessions.finished_at', 'is', null);
+    .not('sessions.finished_at', 'is', null)
+    .is('deleted_at', null);
   if (error) throw error;
 
   type Row = WorkoutSet & { sessions: SessionWithRoutine };
@@ -239,6 +244,7 @@ export async function fetchExerciseHistories(
       rpe: row.rpe,
       notes: row.notes,
       group_id: row.group_id,
+      deleted_at: row.deleted_at,
       started_at: row.started_at,
       completed_at: row.completed_at,
       created_at: row.created_at,
@@ -270,6 +276,7 @@ export async function fetchRecentRoutineSessions(
     .from('sets')
     .select('*, exercises(*, muscle_groups(*))')
     .in('session_id', ids)
+    .is('deleted_at', null)
     .order('set_order');
   if (setsErr) throw setsErr;
 
@@ -290,6 +297,7 @@ export async function fetchExerciseTrends(exerciseId: string, limit = 8) {
     .from('sets')
     .select('session_id, set_order, reps, weight_kg, sessions!inner(started_at)')
     .eq('exercise_id', exerciseId)
+    .is('deleted_at', null)
     .order('set_order');
   if (error) throw error;
 
