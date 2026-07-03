@@ -29,4 +29,4 @@ delete from health.samples  where source = 'curl-fixture';
 delete from health.ingest_log;
 ```
 
-Status 2026-07-03: everything except the three token-dependent tests was run and passed against the deployed function (the token is generated inside the DB and deliberately never left it). The same happy-path/resend/malformed logic was verified at the RPC layer via `public.health_ingest()` with the token referenced by subselect. Run the full suite once the token is pasted.
+Status 2026-07-04: full suite run against the deployed function with the real token — 7/7 passed (including valid batch, idempotent resend with `*_new: 0`, and malformed 400). Fixture rows cleaned up afterwards; `health.*` tables left empty for the first real Shortcut sync.
