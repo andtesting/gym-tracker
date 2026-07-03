@@ -70,7 +70,9 @@ export default function ActiveWorkout({
   const [now, setNow] = useState(() => Date.now());
   const sessionElapsed = Math.max(0, Math.round((now - sessionStart) / 1000));
   const [showHistory, setShowHistory] = useState(false);
-  const [summary, setSummary] = useState<WorkoutSummary | null>(null);
+  // Duration is snapshotted at finish: the elapsed interval keeps ticking
+  // behind the overlay, and the reward screen must not count up.
+  const [summary, setSummary] = useState<{ data: WorkoutSummary; durationSeconds: number } | null>(null);
   const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
@@ -159,7 +161,7 @@ export default function ActiveWorkout({
     // The summary is the reward moment; skip it for an empty session.
     const workoutSummary = summariseWorkout(workout.exercises);
     if (workoutSummary.totalSets > 0) {
-      setSummary(workoutSummary);
+      setSummary({ data: workoutSummary, durationSeconds: sessionElapsed });
     } else {
       onFinish();
     }
@@ -379,8 +381,8 @@ export default function ActiveWorkout({
       {summary && (
         <SessionSummary
           routineName={routineName}
-          durationSeconds={sessionElapsed}
-          summary={summary}
+          durationSeconds={summary.durationSeconds}
+          summary={summary.data}
           onDone={onFinish}
         />
       )}
