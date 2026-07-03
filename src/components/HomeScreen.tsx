@@ -110,6 +110,7 @@ export default function HomeScreen({ onNavigate }: Props) {
       session_finished_at: set.sessions.finished_at,
       session_notes: set.sessions.notes,
       rpe: set.rpe,
+      set_notes: set.notes,
     }));
 
     const content = format === 'csv' ? toCSV(rows) : toJSON(rows);

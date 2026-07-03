@@ -106,6 +106,7 @@ export interface ExportSetRow {
   set_duration_seconds: number | null;
   rest_seconds: number | null;
   rpe: number | null;
+  notes: string | null;
   started_at: string | null;
   completed_at: string | null;
   sessions: {
@@ -141,7 +142,7 @@ export async function fetchExportSets(): Promise<ExportSetRow[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('sets')
-      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, rpe, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)')
+      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, rpe, notes, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)')
       .order('id')
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -235,6 +236,7 @@ export async function fetchExerciseHistories(
       set_duration_seconds: row.set_duration_seconds,
       rest_seconds: row.rest_seconds,
       rpe: row.rpe,
+      notes: row.notes,
       started_at: row.started_at,
       completed_at: row.completed_at,
       created_at: row.created_at,
