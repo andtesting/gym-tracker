@@ -28,7 +28,9 @@ export default function SessionSummary({ routineName, durationSeconds, summary, 
   const [notes, setNotes] = useState('');
   const submittedRef = useRef(false);
   const latestRef = useRef({ notes, onSaveNotes });
-  latestRef.current = { notes, onSaveNotes };
+  useEffect(() => {
+    latestRef.current = { notes, onSaveNotes };
+  }, [notes, onSaveNotes]);
 
   // A back-swipe unmounts the overlay without tapping Done; don't let a
   // typed note vanish with it.
