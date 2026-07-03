@@ -59,6 +59,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // A reload can land on a previously pushed app entry while screen state
+    // resets to Home; reclaim whatever entry we booted on as the base so the
+    // stack depth matches the screen state again.
+    history.replaceState(null, '');
     const onPop = () => {
       // Back gesture from an active workout behaves like the Home button:
       // the session persists (localStorage + Supabase) and can be resumed.
