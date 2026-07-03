@@ -2,32 +2,25 @@
 
 Snapshot of where the project is. Replace every session, never append.
 
-## Current state — 2026-07-03 (late)
+## Current state — 2026-07-03 (end of day)
 
-Branch: `main`. Big execution session: Phase 0 through Phase 3 of `docs/DEEP_REVIEW_AND_V2_PLAN.md` are done, plus a user-feedback batch and the schema-free Phase 5 slice. Every PR was reviewed by finder agents, steelmanned, amended, then squash-merged.
+Branch: `main`, clean, everything merged through PR #29 and auto-deployed. Marathon session: Phases 0-3 of `docs/DEEP_REVIEW_AND_V2_PLAN.md` shipped (PRs #16-22), user-feedback batch (settings/theme/units/field-first chips, #23), schema-free Phase 5 slice (session notes #24-25, delete UX with undo + ConfirmSheet #26, home glance stats #27), and the Health Sync plan (#28). Every PR went through finder-agent review, steelman, amend, merge; the reviews caught real bugs pre-merge (1000-row export cap, lb round-trip drift firing false PRs, stale-undo-closure clobbering sets, cross-tab outbox dequeue loss, cross-account outbox contamination).
 
-Merged this session:
-
-- **PR #16-18 (Phase 0 quick wins)**: prefill reps/weight, lossless paginated export, error toasts, resume elapsed clock, PNG app icons, safe-area insets, dark mode, iOS back gesture via History API. Review amendments included a real bug: un-ranged supabase-js queries cap at 1000 rows (export would have truncated silently).
-- **PR #19 (Phase 1, AND-8)**: local-first logging. FIFO outbox in localStorage (full-row upserts, client UUIDs, idempotent replay), useSync drain loop, timer anchors persisted across PWA kills (capped 1h), offline session start, optimistic resume, account-switch quarantine (`lib/localOwner`), cross-tab-safe keyed dequeue. Verified end to end with an airplane-mode drill in Chrome; the drill caught that supabase-js reports fetch failures as plain objects, not Errors.
-- **PR #20 (Phase 2, AND-47)**: quick-capture logging. In-app number pad (replace-on-first-digit), nudge chips, big value buttons, no OS keyboard in the log loop.
-- **PR #21 (Phase 3a)**: weight-PR badge at log time + session summary overlay on Finish (duration/sets/tonnage/PRs). Pure derivation, no schema.
-- **PR #22 (Phase 3b)**: schema-only data-contract migration; see gate below.
-- **PR #23 (AND-50, user feedback)**: settings screen (system/light/dark theme, kg/lb unit, configurable chip steps; persisted per user), field-first quick-adjust chips, unit-in-header rows. Review caught an lb round-trip rounding drift that would have fired false PR badges; displayToKg now rounds 2dp (provably stable).
-- **PR #24/#25 (session notes)**: notes textarea on the finish summary (outbox, offline-safe) + SessionDetail display/edit. sessions.notes existed since v3 with no UI.
-- **PR #26 (delete UX)**: in-workout set delete is now delete-then-undo (restoreSet re-upserts same UUID; ref-read fixes the stale-toast-closure bug the review caught); ConfirmSheet bottom sheet replaced every window.confirm; AGENTS.md convention updated.
-- **PR #27 (home stats)**: weekly streak, sets/tonnage this week vs last, next-up routine suggestion (lib/stats, tested).
+Linear: AND-8, 39-53 all Done with PR links; AND-49 In Review (migration application). Tests 71/71; lint at its 2-error pre-existing baseline (App.tsx resume effect, useAuth).
 
 ## Next steps (in order)
 
-1. **Andy: real-device pass** on the deployed app: home-screen icon, safe area, dark mode, back gesture, number pad feel, offline drill (airplane mode in the gym), PR badge + summary.
-2. **Andy: apply `sql/migrations/2026-07-03-phase3-data-contract.sql`** in the Supabase SQL Editor (additive, guarded, re-run safe). Until then no code may touch the new columns (`sessions.source`, `sets.rpe/notes/group_id/deleted_at`, `routine_exercises`, exercise metadata).
-3. **After migration applied**: build the column-dependent UI: RPE quick-tap row in QuickCapture, session/set notes, routine templates (plan view + per-exercise rest targets, AND-6), soft-delete switch in deleteSet, `source` on session insert.
-4. **Phase 4 = Layer 2** (`docs/LAYER2_PLAN.md`): blocked on Andy: Health Auto Export on the phone + a write path for the `health` schema migration (Supabase MCP is read-only). L2.0 ingestion is independent of all app work.
-5. **Phase 5 remaining**: rest countdown + push notification (needs templates from the migration), sheets-close-on-back-gesture (needs a history-state-machine refactor: simple push/pop provably breaks the tap-through-day-sheet flow; own PR).
+1. **`/mcp` re-authenticate the Supabase server** (config now `database,docs,functions`, write-enabled; the URL change may have dropped the OAuth grant). Then Claude can:
+2. **Apply the Phase 3 migration** (`sql/migrations/2026-07-03-phase3-data-contract.sql`) — Andy deferred doing it by hand; watch for the case-insensitive index failing on case-duplicate names.
+3. **Build the Health Sync pipeline** per `docs/HEALTH_SYNC_PLAN.md`: `health` schema, `ingest-health` edge function + secrets, curl fixture suite, Shortcut recipe doc. Roughly half a day.
+4. **Andy, ~30 min on phone**: the 2-minute Shortcuts probe (does "Find Health Samples" list HRV and Sleep?), then build the Health Sync Shortcut from the recipe, set the 09:00 automation. Deferred but still owed: the real-device pass (icons, dark mode, keypad, airplane-mode drill, back gesture).
+5. **Post-migration UI batch** (once #2 is applied): RPE quick-tap in QuickCapture, per-set notes, routine templates + per-exercise rest targets (unlocks AND-6 countdown), supersets (AND-10), soft delete with `.is('deleted_at', null)` read filters (export keeps all rows).
+6. **Flip the Supabase MCP back to `read_only=true`** in `~/.claude.json` once #2/#3 are done; standing prod write access is only justified while migration work exists.
 
 ## Notes
 
-- Review-declined items worth remembering: PR badges can be optimistic across consecutive offline sessions (histories are server-sourced; self-heals on sync). Multi-device edits to an actively open session are out of contract (phone-authoritative, documented in AGENTS.md).
-- Test account (<jchx.agent@gmail.com>) now holds several finished "test push A" sessions from verification; harmless, useful as history for future drills.
-- The two remaining lint errors (App.tsx resume effect, useAuth) are pre-existing set-state-in-effect findings; structural, deliberately untouched.
+- Sheets-close-on-back-gesture was descoped twice with reasons: needs a history-state-machine refactor (encode screen+sheet in history.state); simple push/pop provably breaks the tap-through-day-sheet flow. Own PR when tackled.
+- Review-declined items on record: PR badges can be optimistic across consecutive offline sessions (server-sourced histories; self-heals); multi-device edits to an actively open session are out of contract (phone-authoritative, in AGENTS.md); routines untrained for 12+ weeks read as never-trained in the next-up suggestion (still sorts first, comment in lib/stats).
+- Reps chips round to whole reps, so a 2.5 step on reps jumps 3; Andy may want independent step pairs per field (offered, unanswered).
+- Test account (jchx.agent@gmail.com) holds several test sessions; kept deliberately as fixture history for agent drills.
+- Stale local branch `fix/and-10-pwa-loading-stuck` still unpruned.
