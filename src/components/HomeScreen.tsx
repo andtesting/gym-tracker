@@ -32,7 +32,8 @@ export default function HomeScreen({ onNavigate }: Props) {
   const toast = useToast();
   const pendingSync = useSync();
   const { settings } = useSettings();
-  const [volumeRows, setVolumeRows] = useState<VolumeSetRow[]>([]);
+  // null until loaded so the stat tiles never flash zeros.
+  const [volumeRows, setVolumeRows] = useState<VolumeSetRow[] | null>(null);
   const [routines, setRoutines] = useState<Routine[]>([]);
   // The server session list can't know about an offline-started workout;
   // the local record is the way back in.
@@ -77,7 +78,7 @@ export default function HomeScreen({ onNavigate }: Props) {
   const todayKey = localDateKey(new Date().toISOString());
   const streak = weeklyStreak(heatmapSessions.map(s => localDateKey(s.started_at)), todayKey);
   const weekCmp = compareWeeks(
-    volumeRows.map(r => ({ reps: r.reps, weight_kg: r.weight_kg, dateKey: localDateKey(r.sessions.started_at) })),
+    (volumeRows ?? []).map(r => ({ reps: r.reps, weight_kg: r.weight_kg, dateKey: localDateKey(r.sessions.started_at) })),
     todayKey,
   );
   const nextUp = nextUpRoutine(routines, heatmapSessions.map(s => ({ routine_id: s.routine_id, started_at: s.started_at })));
@@ -177,10 +178,10 @@ export default function HomeScreen({ onNavigate }: Props) {
         />
       )}
 
-      {!loading && heatmapSessions.length > 0 && (
+      {!loading && volumeRows !== null && heatmapSessions.length > 0 && (
         <div className="summary-stats">
           <div className="summary-stat">
-            <span className="summary-stat-value">{streak}wk</span>
+            <span className="summary-stat-value">{streak >= 12 ? '12+' : streak}wk</span>
             <span className="summary-stat-label">streak</span>
           </div>
           <div className="summary-stat">
@@ -206,7 +207,7 @@ export default function HomeScreen({ onNavigate }: Props) {
       {!loading && nextUp && !localWorkout && (
         <p
           className="text-small text-muted mt-8"
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', minHeight: 'var(--touch-min)', display: 'flex', alignItems: 'center' }}
           onClick={() => onNavigate({ name: 'pickRoutine' })}
         >
           Next up: <strong style={{ color: 'var(--color-text)' }}>{nextUp.name}</strong> (longest since trained)

@@ -175,7 +175,8 @@ export async function fetchRecentVolumeSets(sinceIso: string): Promise<VolumeSet
   const { data, error } = await supabase
     .from('sets')
     .select('reps, weight_kg, sessions!inner(started_at)')
-    .gte('sessions.started_at', sinceIso);
+    .gte('sessions.started_at', sinceIso)
+    .not('sessions.finished_at', 'is', null);
   if (error) throw error;
   return data as unknown as VolumeSetRow[];
 }

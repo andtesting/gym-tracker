@@ -79,7 +79,9 @@ interface SessionRef {
 }
 
 // The routine that has gone longest without a session, never-trained ones
-// first. Null with fewer than two routines: a suggestion needs a choice.
+// first. Sessions outside the caller's window (12 weeks on Home) read as
+// never-trained, which still sorts them first, so the suggestion holds.
+// Null with fewer than two routines: a suggestion needs a choice.
 export function nextUpRoutine(routines: RoutineRef[], sessions: SessionRef[]): RoutineRef | null {
   if (routines.length < 2) return null;
   const latest = new Map<string, string>();
