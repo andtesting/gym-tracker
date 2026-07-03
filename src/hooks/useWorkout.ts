@@ -1,14 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  fetchLastSession,
-  fetchSessionSets,
-  finishSession,
-  fetchExerciseHistories,
-} from '../api/sessions';
-import { createSet, updateSet as apiUpdateSet, deleteSet as apiDeleteSet } from '../api/sets';
-import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
-import type { CreateSetInput } from '../api/sets';
+import { fetchLastSession, fetchSessionSets, fetchExerciseHistories } from '../api/sessions';
+import { pushOutbox } from '../lib/outbox';
+import { loadActiveWorkout, updateActiveWorkout } from '../lib/sessionPersistence';
 import { useToast } from './useToast';
+import type { Exercise, WorkoutSet, SetWithExercise, ExerciseHistoryEntry } from '../types';
 
 export interface ActiveExercise {
   exercise: Exercise;
@@ -22,7 +17,35 @@ interface UseWorkoutOptions {
   retroactive?: boolean;
 }
 
+// Exact DB columns for the sets table; strips UI-side joins before the row
+// goes into the outbox.
+function toSetRow(set: WorkoutSet): Record<string, unknown> {
+  return {
+    id: set.id,
+    session_id: set.session_id,
+    exercise_id: set.exercise_id,
+    set_order: set.set_order,
+    set_type: set.set_type,
+    reps: set.reps,
+    weight_kg: set.weight_kg,
+    set_duration_seconds: set.set_duration_seconds,
+    rest_seconds: set.rest_seconds,
+    started_at: set.started_at,
+    completed_at: set.completed_at,
+    created_at: set.created_at,
+  };
+}
+
+// The active-workout record embeds each set's exercise so the workout can
+// rehydrate without the server (offline resume after a PWA kill).
+function flattenSets(exercises: ActiveExercise[]): SetWithExercise[] {
+  return exercises
+    .flatMap(e => e.sets.map(s => ({ ...s, exercises: e.exercise })))
+    .sort((a, b) => a.set_order - b.set_order);
+}
+
 export function useWorkout(sessionId: string, routineId: string, opts: UseWorkoutOptions = {}) {
+  const retroactive = opts.retroactive ?? false;
   const [exercises, setExercises] = useState<ActiveExercise[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [setOrder, setSetOrder] = useState(1);
@@ -36,7 +59,16 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       return null;
     });
 
-    Promise.all([lastSamePromise, fetchSessionSets(sessionId)])
+    // The local record is authoritative for the current session's sets while
+    // a workout is active: it works offline and it is fresher than the server
+    // whenever the outbox still holds unsynced writes.
+    const persisted = retroactive ? null : loadActiveWorkout();
+    const localSets = persisted?.sessionId === sessionId && persisted.sets ? persisted.sets : null;
+    const setsPromise: Promise<SetWithExercise[]> = localSets
+      ? Promise.resolve(localSets)
+      : fetchSessionSets(sessionId);
+
+    Promise.all([lastSamePromise, setsPromise])
       .then(async ([lastSameRoutine, currentSets]) => {
         // Build ordered list: current-session exercises first (in set_order),
         // then pre-populate any leftover exercises from the most recent
@@ -73,6 +105,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
 
         // Cross-routine history (AND-25/31): prior performances of each exercise
         // regardless of routine, newest first, excluding the current session.
+        // Offline this fails and the workout proceeds without references.
         const historyByExercise = await fetchExerciseHistories(exerciseOrder).catch((e) => {
           console.error('Failed to fetch cross-routine history:', e);
           return new Map<string, ExerciseHistoryEntry[]>();
@@ -84,6 +117,12 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
 
         const result = exerciseOrder.map(id => exerciseMap.get(id)!);
         setExercises(result);
+
+        // Seed the local record from the server copy so a mid-workout kill
+        // can rehydrate without network from here on.
+        if (!retroactive && !localSets) {
+          updateActiveWorkout({ sets: currentSets });
+        }
 
         // Resumed session: jump back to where the user was (last exercise touched).
         // Fresh session: stay on plan view (activeIndex = null) so the user sees
@@ -102,7 +141,11 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
         toast('Failed to load session data. Check your connection and reopen the workout.');
       })
       .finally(() => setLoading(false));
-  }, [sessionId, routineId, toast]);
+  }, [sessionId, routineId, retroactive, toast]);
+
+  const persistSets = useCallback((next: ActiveExercise[]) => {
+    if (!retroactive) updateActiveWorkout({ sets: flattenSets(next) });
+  }, [retroactive]);
 
   const addExercise = useCallback((exercise: Exercise) => {
     setExercises(prev => {
@@ -142,6 +185,9 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     setActiveIndex(null);
   }, []);
 
+  // Mutations are local-first (AND-8): state and the persisted record update
+  // synchronously and the server write goes through the outbox, so logging
+  // never waits on the network. The async signatures are kept for callers.
   const logSet = useCallback(async (
     exerciseIndex: number,
     data: {
@@ -155,55 +201,78 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     createdAt?: string,
   ): Promise<WorkoutSet> => {
     const exercise = exercises[exerciseIndex];
-    const input: CreateSetInput = {
+    const newSet: WorkoutSet = {
+      id: crypto.randomUUID(),
       session_id: sessionId,
       exercise_id: exercise.exercise.id,
       set_order: setOrder,
+      set_type: 'working',
       reps: data.reps,
       weight_kg: data.weight_kg,
       set_duration_seconds: data.set_duration_seconds,
       rest_seconds: restSeconds,
       started_at: data.started_at,
       completed_at: data.completed_at,
+      created_at: createdAt ?? new Date().toISOString(),
     };
-    if (createdAt) input.created_at = createdAt;
-
-    const newSet = await createSet(input);
-    setExercises(prev => prev.map((e, i) =>
+    const next = exercises.map((e, i) =>
       i === exerciseIndex ? { ...e, sets: [...e.sets, newSet] } : e,
-    ));
+    );
+    setExercises(next);
+    persistSets(next);
+    pushOutbox({ table: 'sets', op: 'upsert', rowId: newSet.id, payload: toSetRow(newSet) });
     setSetOrder(prev => prev + 1);
     setLastSetId(newSet.id);
     return newSet;
-  }, [sessionId, exercises, setOrder]);
+  }, [sessionId, exercises, setOrder, persistSets]);
 
   const editSet = useCallback(async (
     exerciseIndex: number,
     setId: string,
     updates: { reps?: number; weight_kg?: number },
   ) => {
-    await apiUpdateSet(setId, updates);
-    setExercises(prev => prev.map((e, i) => {
+    let updated: WorkoutSet | null = null;
+    const next = exercises.map((e, i) => {
       if (i !== exerciseIndex) return e;
       return {
         ...e,
-        sets: e.sets.map(s => s.id === setId ? { ...s, ...updates } : s),
+        sets: e.sets.map(s => {
+          if (s.id !== setId) return s;
+          updated = { ...s, ...updates };
+          return updated;
+        }),
       };
-    }));
-  }, []);
+    });
+    if (!updated) return;
+    setExercises(next);
+    persistSets(next);
+    pushOutbox({ table: 'sets', op: 'upsert', rowId: setId, payload: toSetRow(updated) });
+  }, [exercises, persistSets]);
 
   const deleteSet = useCallback(async (exerciseIndex: number, setId: string) => {
-    await apiDeleteSet(setId);
-    setExercises(prev => prev.map((e, i) => {
-      if (i !== exerciseIndex) return e;
-      return { ...e, sets: e.sets.filter(s => s.id !== setId) };
-    }));
+    const next = exercises.map((e, i) =>
+      i === exerciseIndex ? { ...e, sets: e.sets.filter(s => s.id !== setId) } : e,
+    );
+    setExercises(next);
+    persistSets(next);
+    pushOutbox({ table: 'sets', op: 'delete', rowId: setId });
     if (lastSetId === setId) setLastSetId(null);
-  }, [lastSetId]);
+  }, [exercises, persistSets, lastSetId]);
 
   const finish = useCallback(async (finishedAt?: string) => {
-    await finishSession(sessionId, finishedAt);
-  }, [sessionId]);
+    const persisted = retroactive ? null : loadActiveWorkout();
+    const payload: Record<string, unknown> = {
+      id: sessionId,
+      finished_at: finishedAt ?? new Date().toISOString(),
+    };
+    // Locally created sessions carry their identity so the upsert can insert
+    // the row even if the original creation write was somehow lost.
+    if (persisted?.startedAt) {
+      payload.routine_id = routineId;
+      payload.started_at = persisted.startedAt;
+    }
+    pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
+  }, [sessionId, routineId, retroactive]);
 
   return {
     exercises,
@@ -218,6 +287,6 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     finish,
     loading,
     lastSetId,
-    retroactive: opts.retroactive ?? false,
+    retroactive,
   };
 }

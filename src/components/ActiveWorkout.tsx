@@ -3,7 +3,14 @@ import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { fetchSession } from '../api/sessions';
-import { saveActiveWorkout, clearActiveWorkout } from '../lib/sessionPersistence';
+import {
+  saveActiveWorkout,
+  loadActiveWorkout,
+  updateActiveWorkout,
+  clearActiveWorkout,
+} from '../lib/sessionPersistence';
+import type { PersistedTimer } from '../lib/sessionPersistence';
+import type { TimerState } from '../lib/timer';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
 import TimerDisplay from './TimerDisplay';
@@ -30,20 +37,51 @@ export default function ActiveWorkout({
   onHome,
 }: Props) {
   const workout = useWorkout(sessionId, routineId, { retroactive });
-  const timer = useTimer();
+  // Restore persisted timer anchors so an iOS PWA kill mid-set or mid-rest
+  // keeps measuring instead of silently dropping the timing data (AND-8).
+  const [restoredTimer] = useState<PersistedTimer | null>(() => {
+    if (retroactive) return null;
+    const persisted = loadActiveWorkout();
+    return persisted?.sessionId === sessionId ? persisted.timer ?? null : null;
+  });
+  const initialTimerState: TimerState | undefined =
+    restoredTimer && restoredTimer.mode !== 'idle' && restoredTimer.startedAtMs !== null
+      ? { mode: restoredTimer.mode, startTime: restoredTimer.startedAtMs }
+      : undefined;
+  const timer = useTimer(initialTimerState);
   // Mount time is only a placeholder until the session row loads: a resumed
   // session must show elapsed since started_at, not since remount (AND-45).
-  const [sessionStart, setSessionStart] = useState(() => Date.now());
+  const [sessionStart, setSessionStart] = useState(() => {
+    if (!retroactive) {
+      const persisted = loadActiveWorkout();
+      if (persisted?.sessionId === sessionId && persisted.startedAt) {
+        return Date.parse(persisted.startedAt);
+      }
+    }
+    return Date.now();
+  });
   const [now, setNow] = useState(() => Date.now());
   const sessionElapsed = Math.max(0, Math.round((now - sessionStart) / 1000));
   const [showHistory, setShowHistory] = useState(false);
-  const setStartedAtRef = useRef<string | null>(null);
+  const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
   // this set). The rest timer keeps running across an exercise switch, so this
   // captures the gap between the previous exercise's last set and the new
   // exercise's first set too (AND-37).
-  const pendingRestRef = useRef<number | null>(null);
+  const pendingRestRef = useRef<number | null>(restoredTimer?.pendingRestSeconds ?? null);
+
+  function persistTimer(mode: 'idle' | 'set' | 'rest', startedAtMs: number | null) {
+    if (retroactive) return;
+    updateActiveWorkout({
+      timer: {
+        mode,
+        startedAtMs,
+        pendingRestSeconds: pendingRestRef.current,
+        setStartedAt: setStartedAtRef.current,
+      },
+    });
+  }
 
   function switchExercise(idx: number | null) {
     // Switching away from an in-progress set cancels it: drop the timer state,
@@ -53,21 +91,31 @@ export default function ActiveWorkout({
       timer.stop();
       setStartedAtRef.current = null;
       pendingRestRef.current = null;
+      persistTimer('idle', null);
     }
     workout.setActiveIndex(idx);
   }
 
   useEffect(() => {
-    if (!retroactive) {
+    if (retroactive) return;
+    // Only create a fresh record when none exists for this session; an
+    // unconditional save would wipe the locally persisted sets and timer.
+    const persisted = loadActiveWorkout();
+    if (persisted?.sessionId !== sessionId) {
       saveActiveWorkout({ sessionId, routineId, routineName });
     }
   }, [sessionId, routineId, routineName, retroactive]);
 
   useEffect(() => {
     if (retroactive) return;
+    const persisted = loadActiveWorkout();
+    if (persisted?.sessionId === sessionId && persisted.startedAt) return;
     fetchSession(sessionId)
       .then(s => {
-        if (s?.started_at) setSessionStart(Date.parse(s.started_at));
+        if (s?.started_at) {
+          setSessionStart(Date.parse(s.started_at));
+          updateActiveWorkout({ startedAt: s.started_at });
+        }
       })
       .catch(() => {});
   }, [sessionId, retroactive]);
@@ -259,6 +307,7 @@ export default function ActiveWorkout({
             // (rest taken before it). Hold it until onLogSet persists the set.
             const restSeconds = timer.startSet();
             pendingRestRef.current = restSeconds > 0 ? restSeconds : null;
+            persistTimer('set', Date.now());
           }}
           onLogSet={async (data) => {
             if (retroactive) {
@@ -282,6 +331,7 @@ export default function ActiveWorkout({
             const restSeconds = pendingRestRef.current;
             setStartedAtRef.current = null;
             pendingRestRef.current = null;
+            persistTimer('rest', Date.now());
             await workout.logSet(workout.activeIndex!, {
               ...data,
               set_duration_seconds: setDuration > 0 ? setDuration : null,

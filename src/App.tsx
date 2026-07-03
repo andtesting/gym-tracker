@@ -3,6 +3,7 @@ import type { Screen } from './types';
 import { isSupabaseConfigured } from './supabase';
 import { useAuth } from './hooks/useAuth';
 import { loadActiveWorkout, clearActiveWorkout, validatePersistedSession } from './lib/sessionPersistence';
+import { useSync } from './hooks/useSync';
 import LoginScreen from './components/LoginScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
 import HomeScreen from './components/HomeScreen';
@@ -40,6 +41,7 @@ export default function App() {
   const [resumeChecked, setResumeChecked] = useState(false);
   const { session, loading, recovery, clearRecovery } = useAuth();
   const screenRef = useRef(screen);
+  useSync();
 
   // Screen state stays the source of truth; the History API mirrors it one
   // entry deep so the iOS edge-swipe (browser back) navigates instead of
@@ -80,8 +82,10 @@ export default function App() {
       setResumeChecked(true);
       return;
     }
-    validatePersistedSession(persisted.sessionId).then(valid => {
-      if (valid) {
+    validatePersistedSession(persisted.sessionId).then(status => {
+      // 'unknown' means the server was unreachable; resume optimistically
+      // from the local record rather than dropping an offline workout.
+      if (status === 'active' || status === 'unknown') {
         navigate({
           name: 'activeWorkout',
           sessionId: persisted.sessionId,

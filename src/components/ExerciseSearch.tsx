@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { fetchExercises, createExercise } from '../api/exercises';
 import { fetchMuscleGroups, createMuscleGroup } from '../api/muscleGroups';
 import { searchExercises } from '../lib/search';
+import { cachedFetch } from '../lib/cache';
 import type { Exercise, MuscleGroup } from '../types';
 import MuscleGroupPicker from './MuscleGroupPicker';
 import { useToast } from '../hooks/useToast';
@@ -22,7 +23,11 @@ export default function ExerciseSearch({ onSelect, primaryMuscleGroupId }: Props
   const toast = useToast();
 
   useEffect(() => {
-    Promise.all([fetchExercises(), fetchMuscleGroups()])
+    // Cached so exercise picking keeps working offline mid-workout.
+    Promise.all([
+      cachedFetch('exercises', fetchExercises),
+      cachedFetch('muscle-groups', fetchMuscleGroups),
+    ])
       .then(([ex, mg]) => {
         setAllExercises(ex);
         setGroups(mg);

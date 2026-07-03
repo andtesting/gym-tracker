@@ -2,9 +2,11 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { createTimer, startRest as pureStartRest, startSet as pureStartSet, stopTimer, getElapsed } from '../lib/timer';
 import type { TimerState } from '../lib/timer';
 
-export function useTimer() {
-  const [timerState, setTimerState] = useState<TimerState>(createTimer);
-  const [elapsed, setElapsed] = useState(0);
+// `initial` restores a persisted timer (e.g. after an iOS PWA kill): elapsed
+// is computed from the original startTime, so time spent dead still counts.
+export function useTimer(initial?: TimerState) {
+  const [timerState, setTimerState] = useState<TimerState>(() => initial ?? createTimer());
+  const [elapsed, setElapsed] = useState(() => (initial ? getElapsed(initial, Date.now()) : 0));
   const intervalRef = useRef<number | null>(null);
 
   const clearTick = useCallback(() => {
@@ -17,11 +19,21 @@ export function useTimer() {
   const startTick = useCallback((state: TimerState) => {
     clearTick();
     setTimerState(state);
-    setElapsed(0);
+    setElapsed(getElapsed(state, Date.now()));
     intervalRef.current = window.setInterval(() => {
       setElapsed(getElapsed(state, Date.now()));
     }, 1000);
   }, [clearTick]);
+
+  // A restored non-idle timer has state but no interval yet; start ticking.
+  useEffect(() => {
+    if (timerState.mode !== 'idle' && intervalRef.current === null) {
+      const state = timerState;
+      intervalRef.current = window.setInterval(() => {
+        setElapsed(getElapsed(state, Date.now()));
+      }, 1000);
+    }
+  }, [timerState]);
 
   const startRest = useCallback((): number => {
     const now = Date.now();
