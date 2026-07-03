@@ -9,8 +9,25 @@
   --color-success: #16a34a;
   --color-warning: #f59e0b;
   --color-danger: #dc2626;
+  --color-heatmap-empty: #e5e5e5;
   --radius: 8px;
   --touch-min: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #121316;
+    --color-surface: #1e2024;
+    --color-text: #e8e8ea;
+    --color-muted: #9b9ba1;
+    --color-accent: #3b82f6;
+    --color-accent-light: #1e3a5f;
+    --color-border: #2e3035;
+    --color-success: #22c55e;
+    --color-warning: #fbbf24;
+    --color-danger: #ef4444;
+    --color-heatmap-empty: #26282c;
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,7 +44,7 @@ body {
   max-width: 480px;
   margin: 0 auto;
   padding: 16px;
-  padding-bottom: 160px;
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
   min-height: 100dvh;
 }
 
@@ -247,6 +264,7 @@ input:focus, select:focus {
   left: 0;
   right: 0;
   padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
   display: flex;
@@ -330,6 +348,7 @@ input:focus, select:focus {
   left: 0;
   right: 0;
   padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   background: var(--color-bg);
   border-top: 1px solid var(--color-border);
   display: flex;

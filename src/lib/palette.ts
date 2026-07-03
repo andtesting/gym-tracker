@@ -8,7 +8,8 @@ export const PALETTE = [
 ];
 
 export const UNNAMED_COLOUR = '#94a3b8';
-export const NO_WORKOUT_COLOUR = '#e5e5e5';
+// CSS variable so the heatmap's empty cells follow light/dark theme.
+export const NO_WORKOUT_COLOUR = 'var(--color-heatmap-empty)';
 
 export function autoAssignColour(existingCount: number): string {
   return PALETTE[existingCount % PALETTE.length];
