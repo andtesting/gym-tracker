@@ -4,6 +4,8 @@ import { fetchSessionSets, deleteSession } from '../api/sessions';
 import { createSet, updateSet, deleteSet } from '../api/sets';
 import type { Exercise, SetWithExercise } from '../types';
 import { formatRest } from '../lib/timer';
+import { useSettings } from '../hooks/useSettings';
+import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
 import ExerciseSearch from './ExerciseSearch';
 import { useToast } from '../hooks/useToast';
 
@@ -30,6 +32,8 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [pendingWeight, setPendingWeight] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
+  const { settings } = useSettings();
+  const unit = settings.unit;
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +66,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   function handleStartEdit() {
     const initial: Record<string, { reps: string; weight_kg: string }> = {};
     for (const set of sets) {
-      initial[set.id] = { reps: String(set.reps), weight_kg: String(set.weight_kg) };
+      initial[set.id] = { reps: String(set.reps), weight_kg: formatWeight(set.weight_kg, unit) };
     }
     setEditedSets(initial);
     setEditing(true);
@@ -120,9 +124,9 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         const edited = editedSets[set.id];
         if (!edited) continue;
         const newReps = parseInt(edited.reps, 10);
-        const newWeight = parseFloat(edited.weight_kg);
-        if (newReps !== set.reps || newWeight !== set.weight_kg) {
-          await updateSet(set.id, { reps: newReps, weight_kg: newWeight });
+        const newWeightKg = displayToKg(parseFloat(edited.weight_kg), unit);
+        if (newReps !== set.reps || newWeightKg !== set.weight_kg) {
+          await updateSet(set.id, { reps: newReps, weight_kg: newWeightKg });
         }
       }
       const refreshed = await fetchSessionSets(sessionId);
@@ -169,7 +173,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         exercise_id: pendingExercise.id,
         set_order: maxOrder + 1,
         reps,
-        weight_kg: weight,
+        weight_kg: displayToKg(weight, unit),
         set_duration_seconds: null,
         started_at: null,
         completed_at: null,
@@ -239,7 +243,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
             )}
           </div>
           <div className="set-row set-row-header mt-8" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 40px' : '50px 1fr 1fr 1fr' }}>
-            <span>Set</span><span>Reps</span><span>Weight</span>
+            <span>Set</span><span>Reps</span><span>{unitHeader(unit)}</span>
             {editing ? <span /> : <span>Rest</span>}
           </div>
           {group.sets.map((set, j) => (
@@ -277,7 +281,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
               ) : (
                 <>
                   <span>{set.reps}</span>
-                  <span>{set.weight_kg} kg</span>
+                  <span>{formatWeight(set.weight_kg, unit)}</span>
                   <span className="text-muted">{formatRest(set.rest_seconds)}</span>
                 </>
               )}
@@ -314,7 +318,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-small text-muted">Weight (kg)</label>
+                  <label className="text-small text-muted">Weight ({unitLabel(unit)})</label>
                   <input
                     type="text"
                     inputMode="decimal"

@@ -1,4 +1,6 @@
 import type { WorkoutSummary } from '../lib/summary';
+import { useSettings } from '../hooks/useSettings';
+import { kgToDisplay, formatWeight, unitLabel } from '../lib/units';
 
 interface Props {
   routineName: string;
@@ -17,6 +19,7 @@ function formatDuration(seconds: number): string {
 // The reward moment the loop used to lack: shown once on Finish, before
 // returning Home. Pure display; the session is already finished and queued.
 export default function SessionSummary({ routineName, durationSeconds, summary, onDone }: Props) {
+  const { settings } = useSettings();
   return (
     <div className="summary-overlay">
       <div className="summary-card">
@@ -31,8 +34,8 @@ export default function SessionSummary({ routineName, durationSeconds, summary, 
             <span className="summary-stat-label">sets</span>
           </div>
           <div className="summary-stat">
-            <span className="summary-stat-value">{summary.tonnageKg.toLocaleString()}</span>
-            <span className="summary-stat-label">kg lifted</span>
+            <span className="summary-stat-value">{Math.round(kgToDisplay(summary.tonnageKg, settings.unit)).toLocaleString()}</span>
+            <span className="summary-stat-label">{unitLabel(settings.unit)} lifted</span>
           </div>
         </div>
 
@@ -47,7 +50,7 @@ export default function SessionSummary({ routineName, durationSeconds, summary, 
             <div key={ex.name} className="row-between summary-exercise">
               <span className="text-small">{ex.name}</span>
               <span className="text-small text-muted">
-                {ex.sets} × · top {ex.topWeightKg}kg × {ex.topWeightReps}
+                {ex.sets} × · top {formatWeight(ex.topWeightKg, settings.unit)} {unitLabel(settings.unit)} × {ex.topWeightReps}
                 {ex.isPr && <span className="pr-badge">PR</span>}
               </span>
             </div>

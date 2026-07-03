@@ -3,21 +3,26 @@ import { Trash2 } from 'lucide-react';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
 import { isWeightPr } from '../lib/summary';
+import { useSettings } from '../hooks/useSettings';
+import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
+import type { WeightUnit } from '../lib/settings';
 import LastSessionRef from './LastSessionRef';
 import QuickCapture from './QuickCapture';
 
 // Most sets repeat (or barely nudge) the previous set's numbers, so the inputs
 // prefill rather than start empty (AND-42): previous set of this exercise
 // today, else the corresponding set from the most recent prior session.
+// The weight string is in DISPLAY units; storage stays kg.
 function prefillValues(
   loggedSets: WorkoutSet[],
   histories: ExerciseHistoryEntry[],
+  unit: WeightUnit,
 ): { reps: string; weight: string } | null {
   const last = loggedSets[loggedSets.length - 1];
-  if (last) return { reps: String(last.reps), weight: String(last.weight_kg) };
+  if (last) return { reps: String(last.reps), weight: formatWeight(last.weight_kg, unit) };
   const prior = histories[0];
   const s = prior ? (prior.sets[loggedSets.length] ?? prior.sets[prior.sets.length - 1]) : undefined;
-  if (s) return { reps: String(s.reps), weight: String(s.weight_kg) };
+  if (s) return { reps: String(s.reps), weight: formatWeight(s.weight_kg, unit) };
   return null;
 }
 
@@ -50,7 +55,9 @@ export default function SetLogger({
   onRemoveExercise,
   onBackToPlan,
 }: Props) {
-  const [initialPrefill] = useState(() => prefillValues(loggedSets, histories));
+  const { settings } = useSettings();
+  const unit = settings.unit;
+  const [initialPrefill] = useState(() => prefillValues(loggedSets, histories, unit));
   const [reps, setReps] = useState(initialPrefill?.reps ?? '');
   const [weight, setWeight] = useState(initialPrefill?.weight ?? '');
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
@@ -70,7 +77,7 @@ export default function SetLogger({
   if (!prefillApplied && histories.length > 0) {
     setPrefillApplied(true);
     if (reps === '' && weight === '') {
-      const p = prefillValues(loggedSets, histories);
+      const p = prefillValues(loggedSets, histories, unit);
       if (p) {
         setReps(p.reps);
         setWeight(p.weight);
@@ -89,7 +96,7 @@ export default function SetLogger({
     setSubmitting(true);
     setError(null);
     try {
-      await onLogSet({ reps: r, weight_kg: w });
+      await onLogSet({ reps: r, weight_kg: displayToKg(w, unit) });
       // Keep the just-logged values as the next set's prefill (repeat sets are
       // the majority case), normalised through the parsers.
       setReps(String(r));
@@ -104,19 +111,20 @@ export default function SetLogger({
   function startEdit(set: WorkoutSet) {
     setEditingSetId(set.id);
     setEditReps(String(set.reps));
-    setEditWeight(String(set.weight_kg));
+    setEditWeight(formatWeight(set.weight_kg, unit));
     setError(null);
   }
 
   async function commitEdit(set: WorkoutSet) {
     const r = parseInt(editReps, 10);
     const w = parseFloat(editWeight);
-    if (isNaN(r) || isNaN(w) || r === set.reps && w === set.weight_kg) {
+    const wKg = isNaN(w) ? NaN : displayToKg(w, unit);
+    if (isNaN(r) || isNaN(wKg) || r === set.reps && wKg === set.weight_kg) {
       setEditingSetId(null);
       return;
     }
     try {
-      await onEditSet(set.id, { reps: r, weight_kg: w });
+      await onEditSet(set.id, { reps: r, weight_kg: wKg });
       setEditingSetId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save edit');
@@ -171,7 +179,7 @@ export default function SetLogger({
           ) : (
             <>
               <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 34px 20px', gap: 4 }}>
-                <span>#</span><span>Reps</span><span>Wt</span><span>Rest</span><span />
+                <span>#</span><span>Reps</span><span>{unitHeader(unit)}</span><span>Rest</span><span />
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
@@ -216,7 +224,7 @@ export default function SetLogger({
                           {set.reps}
                         </span>
                         <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap' }}>
-                          {set.weight_kg}kg
+                          {formatWeight(set.weight_kg, unit)}
                           {isPr && <span className="pr-badge">PR</span>}
                         </span>
                       </>
@@ -265,7 +273,7 @@ export default function SetLogger({
           >
             {submitting
               ? 'Saving…'
-              : `${retroactive ? 'Add Set' : 'Log Set'}${reps && weight ? ` · ${reps} × ${weight} kg` : ''}`}
+              : `${retroactive ? 'Add Set' : 'Log Set'}${reps && weight ? ` · ${reps} × ${weight} ${unitLabel(unit)}` : ''}`}
           </button>
         )}
 

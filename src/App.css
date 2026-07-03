@@ -15,6 +15,38 @@
   --touch-min: 44px;
 }
 
+/* Explicit theme override from Settings; keep the variable lists in sync
+   with :root and the prefers-color-scheme block above. */
+:root[data-theme='light'] {
+  --color-bg: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-text: #1a1a1a;
+  --color-muted: #888888;
+  --color-accent: #2563eb;
+  --color-accent-light: #dbeafe;
+  --color-border: #e5e5e5;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-heatmap-empty: #e5e5e5;
+  --color-accent-soft: #2563eb;
+}
+
+:root[data-theme='dark'] {
+    --color-bg: #121316;
+    --color-surface: #1e2024;
+    --color-text: #e8e8ea;
+    --color-muted: #9b9ba1;
+    --color-accent: #3b82f6;
+    --color-accent-light: #1e3a5f;
+    --color-border: #2e3035;
+    --color-success: #22c55e;
+    --color-warning: #fbbf24;
+    --color-danger: #ef4444;
+    --color-heatmap-empty: #26282c;
+    --color-accent-soft: #93c5fd;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg: #121316;
@@ -349,6 +381,10 @@ input:focus, select:focus {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.qc-chip:disabled {
+  color: var(--color-border);
+  cursor: default;
+}
 .numpad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -446,6 +482,10 @@ input:focus, select:focus {
   border-bottom: 1px solid var(--color-border);
 }
 .summary-exercise:last-child { border-bottom: none; }
+
+.settings-section {
+  margin-bottom: 28px;
+}
 
 .toast-action {
   background: rgba(255, 255, 255, 0.2);

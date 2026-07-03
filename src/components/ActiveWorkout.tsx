@@ -13,6 +13,8 @@ import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
 import { summariseWorkout } from '../lib/summary';
 import type { WorkoutSummary } from '../lib/summary';
+import { useSettings } from '../hooks/useSettings';
+import { formatWeight, unitLabel } from '../lib/units';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
 import TimerDisplay from './TimerDisplay';
@@ -40,6 +42,7 @@ export default function ActiveWorkout({
   onHome,
 }: Props) {
   const workout = useWorkout(sessionId, routineId, { retroactive });
+  const { settings } = useSettings();
   // Restore persisted timer anchors so an iOS PWA kill mid-set or mid-rest
   // keeps measuring instead of silently dropping the timing data (AND-8).
   // Anchors older than an hour are abandoned workouts, not rests; restoring
@@ -270,7 +273,7 @@ export default function ActiveWorkout({
                       </div>
                       {topSet ? (
                         <span className="text-small text-muted">
-                          Last: {topSet.weight_kg}kg × {topSet.reps}
+                          Last: {formatWeight(topSet.weight_kg, settings.unit)} {unitLabel(settings.unit)} × {topSet.reps}
                           {fromOther && recent?.session.routines && (
                             <> · <span style={{ color: recent.session.routines.color }}>
                               {recent.session.routines.name}
