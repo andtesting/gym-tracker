@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
-import { fetchRecentSessions, fetchHeatmapSessions, fetchExportSets } from '../api/sessions';
+import { fetchRecentSessions, fetchHeatmapSessions, fetchExportSets, fetchRecentVolumeSets } from '../api/sessions';
+import { fetchRoutines } from '../api/routines';
 import { signOut } from '../hooks/useAuth';
 import { saveActiveWorkout, loadActiveWorkout } from '../lib/sessionPersistence';
 import { toCSV, toJSON } from '../lib/export';
 import { localDateKey } from '../lib/date';
+import { cachedFetch } from '../lib/cache';
+import { weeklyStreak, compareWeeks, nextUpRoutine } from '../lib/stats';
+import { kgToDisplay, unitLabel } from '../lib/units';
 import { useSync } from '../hooks/useSync';
+import { useSettings } from '../hooks/useSettings';
 import type { ExportRow } from '../lib/export';
-import type { SessionWithRoutine, HeatmapSession, Screen } from '../types';
+import type { VolumeSetRow } from '../api/sessions';
+import type { SessionWithRoutine, HeatmapSession, Screen, Routine } from '../types';
 import ActivityHeatmap from './ActivityHeatmap';
 import ExportDropdown from './ExportDropdown';
 import DayDetailSheet from './DayDetailSheet';
@@ -25,6 +31,9 @@ export default function HomeScreen({ onNavigate }: Props) {
   const [popoverDate, setPopoverDate] = useState<string | null>(null);
   const toast = useToast();
   const pendingSync = useSync();
+  const { settings } = useSettings();
+  const [volumeRows, setVolumeRows] = useState<VolumeSetRow[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
   // The server session list can't know about an offline-started workout;
   // the local record is the way back in.
   const [localWorkout] = useState(() => loadActiveWorkout());
@@ -45,6 +54,11 @@ export default function HomeScreen({ onNavigate }: Props) {
     const startDate = start.toISOString().split('T')[0];
     const endDate = end.toISOString().split('T')[0] + 'T23:59:59';
 
+    // Two weeks back (plus the same UTC-vs-local pad) covers the week
+    // comparison; stats are decoration, so their failures stay silent.
+    const volumeSince = new Date(now);
+    volumeSince.setDate(volumeSince.getDate() - 15);
+
     Promise.all([
       fetchRecentSessions(14),
       fetchHeatmapSessions(startDate, endDate),
@@ -55,7 +69,21 @@ export default function HomeScreen({ onNavigate }: Props) {
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+
+    fetchRecentVolumeSets(volumeSince.toISOString().split('T')[0]).then(setVolumeRows).catch(() => {});
+    cachedFetch('routines', fetchRoutines).then(setRoutines).catch(() => {});
   }, []);
+
+  const todayKey = localDateKey(new Date().toISOString());
+  const streak = weeklyStreak(heatmapSessions.map(s => localDateKey(s.started_at)), todayKey);
+  const weekCmp = compareWeeks(
+    volumeRows.map(r => ({ reps: r.reps, weight_kg: r.weight_kg, dateKey: localDateKey(r.sessions.started_at) })),
+    todayKey,
+  );
+  const nextUp = nextUpRoutine(routines, heatmapSessions.map(s => ({ routine_id: s.routine_id, started_at: s.started_at })));
+  const tonnageDelta = weekCmp.lastWeek.tonnageKg > 0
+    ? Math.round(((weekCmp.thisWeek.tonnageKg - weekCmp.lastWeek.tonnageKg) / weekCmp.lastWeek.tonnageKg) * 100)
+    : null;
 
   async function handleExport(format: 'csv' | 'json') {
     let exportSets;
@@ -147,6 +175,42 @@ export default function HomeScreen({ onNavigate }: Props) {
           sessions={heatmapSessions}
           onCellClick={(date) => setPopoverDate(date)}
         />
+      )}
+
+      {!loading && heatmapSessions.length > 0 && (
+        <div className="summary-stats">
+          <div className="summary-stat">
+            <span className="summary-stat-value">{streak}wk</span>
+            <span className="summary-stat-label">streak</span>
+          </div>
+          <div className="summary-stat">
+            <span className="summary-stat-value">{weekCmp.thisWeek.sets}</span>
+            <span className="summary-stat-label">sets this wk</span>
+          </div>
+          <div className="summary-stat">
+            <span className="summary-stat-value">
+              {Math.round(kgToDisplay(weekCmp.thisWeek.tonnageKg, settings.unit)).toLocaleString()}
+            </span>
+            <span className="summary-stat-label">
+              {unitLabel(settings.unit)} this wk
+              {tonnageDelta !== null && (
+                <span style={{ color: tonnageDelta >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                  {' '}{tonnageDelta >= 0 ? '+' : ''}{tonnageDelta}%
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {!loading && nextUp && !localWorkout && (
+        <p
+          className="text-small text-muted mt-8"
+          style={{ cursor: 'pointer' }}
+          onClick={() => onNavigate({ name: 'pickRoutine' })}
+        >
+          Next up: <strong style={{ color: 'var(--color-text)' }}>{nextUp.name}</strong> (longest since trained)
+        </p>
       )}
 
       {popoverDate && (
