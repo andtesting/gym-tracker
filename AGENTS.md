@@ -29,7 +29,9 @@ src/
   App.tsx       Auth gate + screen switch + cold-start active-workout resume.
 sql/schema.sql  Single-file schema, RLS policies, seed data. Run in Supabase SQL Editor.
 tests/lib/      Vitest unit tests (pure helpers only — no component or integration tests yet).
-docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirements.md).
+docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirements.md) and
+                product plans: DEEP_REVIEW_AND_V2_PLAN.md (Layer 1 roadmap), LAYER2_PLAN.md
+                (data platform + AI coach).
 ```
 
 ## Data model (Supabase)
@@ -101,6 +103,10 @@ Base path is `/gym-tracker/` for both dev and prod (GitHub Pages constraint).
 UI changes are verified via Claude-in-Chrome MCP, not test suites. Treat `tests/` as the contract for pure helpers only. For UI work: start the dev server, drive the flow in Chrome, screenshot if it matters.
 
 **Local setup for agent-driven verification.** `.env` (gitignored) holds `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (the anon key is public — it ships in the deployed bundle). Auth blocks driving the real UI, so a dedicated **RLS-isolated test user** (created in the Supabase dashboard, credentials in gitignored `.secrets.local.json` — see `.secrets.local.example.json`) lets an agent log in and verify flows without touching real data. A project-scoped, OAuth **Supabase MCP server** (`database,docs`) can be added for direct DB reads/migrations; keep it `read_only` unless a migration needs writing.
+
+## Product direction
+
+Two-layer model (settled 2026-07-03): this app is the capture layer only (hot path: live logging, prior-performance reference, PR-at-log-time). Processing and the AI coach live at Layer 2, outside this app. The app never writes to HealthKit (Apple Watch dual-logging already gives Health the workout envelope + HR); it stays a PWA. Roadmaps: `docs/DEEP_REVIEW_AND_V2_PLAN.md` (Layer 1 phases) and `docs/LAYER2_PLAN.md` (health-data ingestion + coach).
 
 ## Things that don't yet exist
 

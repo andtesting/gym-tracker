@@ -2,22 +2,26 @@
 
 Snapshot of where the project is. Replace every session, never append.
 
-## Current state — 2026-07-03
+## Current state — 2026-07-03 (evening)
 
-Branch: `main` (clean). The AND-37/38 work is now fully landed, including the production DB migration and the agent-verification setup.
+Branch: `main`, clean. Docs-only session; no code changes.
 
 Done this session:
 
-- **AND-37 migration applied to prod** (`sql/migrations/2026-07-02-rest-before-set.sql`, via Supabase MCP `apply_migration`). Historical `rest_seconds` realigned to the "rest before this set" model; 192/197 rows shifted forward-by-one. Verification is two-part: the "0 mismatches vs an independent from-backup recompute" proves only *faithful, deterministic execution* (not the model itself, since both sides share the same `lag()`); the model was validated by eyeballing real sessions **on mobile**. Not losslessly reversible (each session's original last-set rest is discarded) and the in-DB backup table was dropped, so the pre-migration snapshot is preserved at `backups/sets-pre-and37-migration-2026-07-03.json` (gitignored) as the recovery source. Migration file annotated; re-run is a guarded no-op.
-- **Agent-driven UI verification now works.** RLS-isolated Supabase test user `jchx.agent@gmail.com` (credentials in gitignored `.secrets.local.json`). Verified end to end: logged in via Chrome MCP against the deployed Pages app, saw an empty isolated account → RLS keeps it off Andy's real data. Caveat: Chrome MCP is a desktop viewport, not a real iPhone; it front-loads flow/logic/obvious-visual catches but does not replace a real-device check.
-- **Supabase MCP hardened to read-only** (`&read_only=true`, local config in `~/.claude.json`). Re-add dropped the OAuth grant, so it needs a one-time `/mcp` → authenticate to reconnect.
+- **Deep project review + V2 plan** at `docs/DEEP_REVIEW_AND_V2_PLAN.md`. 13 concrete code findings (N+1/lossy export, non-transactional reorder, in-memory timer state lost on iOS PWA kill, missing apple-touch-icon / safe-area / dark mode, silent catches, wrong elapsed clock on resume, unbounded history fetches, case-sensitive name uniqueness). Layer 1 plan phases: 0 quick wins → 1 local-first offline → 2 quick-capture keypad (kill the OS keyboard; prefill + nudge chips + in-app pad) → 3 data-contract migrations (provenance, soft delete, RPE, notes, `routine_exercises` templates, supersets) → 5 elegance.
+- **Two-layer architecture settled** (plan doc Part 0): this app = capture / hot path only; processing + AI coach = Layer 2, outside the app. No HealthKit writes ever (Andy dual-logs on Apple Watch, so Health owns the envelope + HR); PWA stays, no native app.
+- **Layer 2 plan** at `docs/LAYER2_PLAN.md`: `health` schema in the same Supabase project; Health Auto Export → edge function ingestion (Watch vitals + Withings weight both arrive via Apple Health); time-overlap correlation views; coach v0 = Claude over the existing read-only Supabase MCP; write-back into the app only via `routine_exercises`, human-approved.
+- AGENTS.md gained a "Product direction" section pointing at both plans.
+- Parked explicitly (future consideration): voice notes, video/form checks.
 
 ## Next steps
 
-- Nothing blocking. Backlog is in Linear (team `Andy C`, project Gym Tracker): AND-6 per-exercise rest defaults/countdown, AND-8 offline write queue, AND-9 notes/RPE, AND-10 supersets.
-- Deferred by design: the CSV/JSON export `date` column uses the UTC split of the *session's* `started_at` (`HomeScreen.tsx:59`), which can drift from the local day. Note the export's own `started_at` column is the *per-set* timestamp (nullable), not the session's, so the true local session date is **not** reconstructable from the export. Low value; revisit only if the export *day* ever matters.
-- Stale local branch `fix/and-10-pwa-loading-stuck` is still around (tracks origin); prune if that AND-10 approach is dead.
+- Layer 1 Phase 0 quick wins are the natural next session (icons, safe-area, dark mode, prefill reps/weight, lossless single-query export, error toasts, elapsed-from-`started_at`, back-gesture via History API). File Linear issues per item before starting.
+- Layer 2 L2.0 (health schema + `ingest-health` edge function + HAE on phone) is independent of all app work and can start any time.
+- Existing backlog absorbed into plan phases: AND-8 offline → Phase 1; AND-9 RPE/notes → Phase 3; AND-10 supersets → Phase 3; AND-6 rest targets → templates + Phase 5.
+- Export UTC-date quirk previously "deferred by design" is now superseded by the Phase 0 export fix.
+- Stale local branch `fix/and-10-pwa-loading-stuck` still around; prune if that approach is dead.
 
 ## Notes
 
-- Linear AND-37 and AND-38 are marked Done.
+- Quick-capture UX confirmed with Andy: big calculator-style in-app pad, prefilled from previous set, one-tap log for the repeat case. Reported full-QWERTY keyboard on device despite `inputMode` hints; unverified, moot after Phase 2.
