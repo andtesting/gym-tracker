@@ -78,7 +78,11 @@ create table health.samples (
 
 RLS on both tables: owner-only, same pattern as Layer 1. High-resolution in-workout HR series can start as `raw jsonb` on `workouts`; promote to a `health.hr_points` table only if a real analysis needs row-level HR.
 
-### Ingestion: Health Auto Export → Edge Function
+### Ingestion: DIY Shortcut → Edge Function (supersedes Health Auto Export)
+
+**Decision changed 2026-07-03: instead of buying Health Auto Export, the extraction agent is a purpose-built iOS Shortcut. Full spec, schema, endpoint contract, security model, test plan and rollout checklist: `docs/HEALTH_SYNC_PLAN.md`. The paragraphs below are retained for the original HAE context and as the documented fallback.**
+
+### Original HAE sketch (fallback path)
 
 - Health Auto Export (HAE, third-party iOS app, ~AUD$10/yr) reads Apple Health and POSTs JSON to a URL on a schedule (daily) and/or on new data. Covers Watch workouts, HR, HRV, sleep, resting HR, and the Withings weight that Withings already syncs into Health. One pipe, many sources.
 - A Supabase Edge Function `ingest-health` receives the POST: verifies a static bearer token (HAE supports custom headers), maps HAE's JSON to `workouts`/`samples`, upserts on the unique keys, logs the batch to `ingest_log`.
