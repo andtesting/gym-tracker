@@ -140,7 +140,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         const newReps = parseInt(edited.reps, 10);
         const newWeightKg = displayToKg(parseFloat(edited.weight_kg), unit);
         const newRpe = normalizeRpe(edited.rpe);
-        if (newReps !== set.reps || newWeightKg !== set.weight_kg || newRpe !== set.rpe) {
+        if (newReps !== set.reps || newWeightKg !== set.weight_kg || newRpe !== (set.rpe ?? null)) {
           await updateSet(set.id, { reps: newReps, weight_kg: newWeightKg, rpe: newRpe });
         }
       }

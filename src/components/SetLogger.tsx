@@ -133,7 +133,8 @@ export default function SetLogger({
     const w = parseFloat(editWeight);
     const wKg = isNaN(w) ? NaN : displayToKg(w, unit);
     const newRpe = normalizeRpe(editRpe);
-    if (isNaN(r) || isNaN(wKg) || (r === set.reps && wKg === set.weight_kg && newRpe === set.rpe)) {
+    // set.rpe ?? null: pre-deploy localStorage records lack the key entirely.
+    if (isNaN(r) || isNaN(wKg) || (r === set.reps && wKg === set.weight_kg && newRpe === (set.rpe ?? null))) {
       setEditingSetId(null);
       return;
     }
