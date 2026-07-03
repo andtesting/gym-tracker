@@ -44,6 +44,8 @@ export interface WorkoutSet {
   rest_seconds: number | null;
   // RPE 1-10, half steps in the UI (DB allows quarter steps). Null = not rated.
   rpe: number | null;
+  // Subjective per-set context ("left shoulder twinge"); unreconstructable later.
+  notes: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;

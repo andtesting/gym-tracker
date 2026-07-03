@@ -386,6 +386,13 @@ input:focus, select:focus, textarea:focus {
   color: var(--color-border);
   cursor: default;
 }
+.set-note {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-muted);
+  padding: 0 0 6px 18px;
+  overflow-wrap: anywhere;
+}
 .qc-rpe-row {
   display: flex;
   gap: 6px;

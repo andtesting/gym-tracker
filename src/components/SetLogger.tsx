@@ -37,7 +37,7 @@ interface Props {
   retroactive?: boolean;
   onStartSet: () => void;
   onLogSet: (data: { reps: number; weight_kg: number; rpe: number | null }) => Promise<void>;
-  onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number; rpe?: number | null }) => Promise<void>;
+  onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number; rpe?: number | null; notes?: string | null }) => Promise<void>;
   onDeleteSet: (setId: string) => Promise<void>;
   onRestoreSet: (set: WorkoutSet) => boolean;
   onRemoveExercise: () => void;
@@ -73,6 +73,7 @@ export default function SetLogger({
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');
   const [editRpe, setEditRpe] = useState('');
+  const [editNotes, setEditNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [histIndex, setHistIndex] = useState(0);
@@ -125,6 +126,7 @@ export default function SetLogger({
     setEditReps(String(set.reps));
     setEditWeight(formatWeight(set.weight_kg, unit));
     setEditRpe(set.rpe == null ? '' : String(set.rpe));
+    setEditNotes(set.notes ?? '');
     setError(null);
   }
 
@@ -133,13 +135,17 @@ export default function SetLogger({
     const w = parseFloat(editWeight);
     const wKg = isNaN(w) ? NaN : displayToKg(w, unit);
     const newRpe = normalizeRpe(editRpe);
-    // set.rpe ?? null: pre-deploy localStorage records lack the key entirely.
-    if (isNaN(r) || isNaN(wKg) || (r === set.reps && wKg === set.weight_kg && newRpe === (set.rpe ?? null))) {
+    const newNotes = editNotes.trim() === '' ? null : editNotes.trim();
+    // ?? null: pre-deploy localStorage records lack the newer keys entirely.
+    if (
+      isNaN(r) || isNaN(wKg) ||
+      (r === set.reps && wKg === set.weight_kg && newRpe === (set.rpe ?? null) && newNotes === (set.notes ?? null))
+    ) {
       setEditingSetId(null);
       return;
     }
     try {
-      await onEditSet(set.id, { reps: r, weight_kg: wKg, rpe: newRpe });
+      await onEditSet(set.id, { reps: r, weight_kg: wKg, rpe: newRpe, notes: newNotes });
       setEditingSetId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save edit');
@@ -211,21 +217,27 @@ export default function SetLogger({
                 // a lighter follow-up set is not a PR.
                 const maxEarlierToday = Math.max(0, ...loggedSets.slice(0, i).map(s => s.weight_kg));
                 const isPr = isWeightPr(set, histories) && set.weight_kg > maxEarlierToday;
-                return (
-                  <div
-                    key={set.id}
-                    className="set-row"
-                    style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}
-                  >
-                    <span>{i + 1}</span>
-                    {editing ? (
-                      <>
+                if (editing) {
+                  return (
+                    // Commit when focus leaves the whole editor, not per input:
+                    // per-input blur would close the editor the moment the user
+                    // moves from one field to the next.
+                    <div
+                      key={set.id}
+                      onBlur={e => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) commitEdit(set);
+                      }}
+                    >
+                      <div
+                        className="set-row"
+                        style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}
+                      >
+                        <span>{i + 1}</span>
                         <input
                           type="text"
                           inputMode="numeric"
                           value={editReps}
                           onChange={e => setEditReps(e.target.value)}
-                          onBlur={() => commitEdit(set)}
                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           autoFocus
                           style={{ minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem' }}
@@ -235,7 +247,6 @@ export default function SetLogger({
                           inputMode="decimal"
                           value={editWeight}
                           onChange={e => setEditWeight(e.target.value)}
-                          onBlur={() => commitEdit(set)}
                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           style={{ minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem' }}
                         />
@@ -246,43 +257,66 @@ export default function SetLogger({
                           value={editRpe}
                           placeholder="RPE"
                           onChange={e => setEditRpe(e.target.value)}
-                          onBlur={() => commitEdit(set)}
                           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           style={{ minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem', gridColumn: 'span 2' }}
                         />
-                      </>
-                    ) : (
-                      <>
-                        <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
-                          {set.reps}
-                        </span>
-                        <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap' }}>
-                          {formatWeight(set.weight_kg, unit)}
-                          {isPr && <span className="pr-badge">PR</span>}
-                        </span>
-                        <span
-                          className="text-muted"
-                          onClick={() => startEdit(set)}
-                          style={{ fontSize: '0.75rem', cursor: 'pointer' }}
+                        {/* preventDefault keeps focus on the input: browsers
+                            that don't focus buttons on tap (iOS Safari) would
+                            otherwise fire the container blur-commit, unmount
+                            this button mid-tap, and swallow the delete click. */}
+                        <button
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => handleDelete(set)}
+                          style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: 2, lineHeight: 0 }}
+                          aria-label="Delete set"
                         >
-                          {set.rpe ?? ''}
-                        </span>
-                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
-                      </>
-                    )}
-                    <button
-                      onClick={() => handleDelete(set)}
-                      style={{
-                        color: 'var(--color-danger)',
-                        background: 'none',
-                        minHeight: 0,
-                        padding: 2,
-                        lineHeight: 0,
-                      }}
-                      aria-label="Delete set"
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={editNotes}
+                        placeholder="Set note (optional)"
+                        onChange={e => setEditNotes(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        style={{ width: '100%', minHeight: 28, padding: '2px 4px', fontSize: '0.8125rem', marginBottom: 4 }}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <div key={set.id}>
+                    <div
+                      className="set-row"
+                      style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}
                     >
-                      <Trash2 size={12} />
-                    </button>
+                      <span>{i + 1}</span>
+                      <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
+                        {set.reps}
+                      </span>
+                      <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap' }}>
+                        {formatWeight(set.weight_kg, unit)}
+                        {isPr && <span className="pr-badge">PR</span>}
+                      </span>
+                      <span
+                        className="text-muted"
+                        onClick={() => startEdit(set)}
+                        style={{ fontSize: '0.75rem', cursor: 'pointer' }}
+                      >
+                        {set.rpe ?? ''}
+                      </span>
+                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
+                      <button
+                        onClick={() => handleDelete(set)}
+                        style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: 2, lineHeight: 0 }}
+                        aria-label="Delete set"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                    {set.notes && (
+                      <div className="set-note" onClick={() => startEdit(set)}>{set.notes}</div>
+                    )}
                   </div>
                 );
               })}

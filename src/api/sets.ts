@@ -17,6 +17,7 @@ export interface CreateSetInput {
   // sets, where no rest is measured. See AND-37.
   rest_seconds?: number | null;
   rpe?: number | null;
+  notes?: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at?: string;
@@ -34,7 +35,7 @@ export async function createSet(input: CreateSetInput): Promise<WorkoutSet> {
 
 export async function updateSet(
   id: string,
-  updates: { reps?: number; weight_kg?: number; set_order?: number; rpe?: number | null },
+  updates: { reps?: number; weight_kg?: number; set_order?: number; rpe?: number | null; notes?: string | null },
 ): Promise<void> {
   const { error } = await supabase
     .from('sets')

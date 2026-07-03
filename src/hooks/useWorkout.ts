@@ -31,6 +31,7 @@ function toSetRow(set: WorkoutSet): Record<string, unknown> {
     set_duration_seconds: set.set_duration_seconds,
     rest_seconds: set.rest_seconds,
     rpe: set.rpe ?? null,
+    notes: set.notes ?? null,
     started_at: set.started_at,
     completed_at: set.completed_at,
     created_at: set.created_at,
@@ -212,6 +213,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       reps: data.reps,
       weight_kg: data.weight_kg,
       rpe: data.rpe,
+      notes: null,
       set_duration_seconds: data.set_duration_seconds,
       rest_seconds: restSeconds,
       started_at: data.started_at,
@@ -232,7 +234,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
   const editSet = useCallback(async (
     exerciseIndex: number,
     setId: string,
-    updates: { reps?: number; weight_kg?: number; rpe?: number | null },
+    updates: { reps?: number; weight_kg?: number; rpe?: number | null; notes?: string | null },
   ) => {
     let updated: WorkoutSet | null = null;
     const next = exercises.map((e, i) => {
