@@ -114,7 +114,10 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
           if (!entry) continue;
           entry.sets.push(set);
           // Superset membership survives resume through the sets themselves.
-          if (set.group_id) entry.groupId = set.group_id;
+          // Unconditional: sets arrive in set_order, so the LAST set's value
+          // wins — a truthy-only assign would resurrect a dissolved link from
+          // a partially synced unlink (mixed gid/null rows on the server).
+          entry.groupId = set.group_id ?? null;
         }
 
         // Cross-routine history (AND-25/31): prior performances of each exercise
@@ -184,15 +187,42 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     });
   }, [sessionId]);
 
-  const reorderExercise = useCallback((index: number, direction: 'up' | 'down') => {
-    setExercises(prev => {
-      const target = direction === 'up' ? index - 1 : index + 1;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
+  // Re-stamps each exercise's logged sets to its current groupId, pushing
+  // outbox upserts for rows that changed. Shared by every mutation that can
+  // move group membership; grouping is a property of the session, not of
+  // when the user tapped Link.
+  const alignSetsToGroups = useCallback((list: ActiveExercise[]): ActiveExercise[] => {
+    return list.map(e => {
+      if (e.sets.length === 0 || e.sets.every(s => (s.group_id ?? null) === e.groupId)) return e;
+      const sets = e.sets.map(s => {
+        if ((s.group_id ?? null) === e.groupId) return s;
+        const updated = { ...s, group_id: e.groupId };
+        pushOutbox({ table: 'sets', op: 'upsert', rowId: s.id, payload: toSetRow(updated) });
+        return updated;
+      });
+      return { ...e, sets };
     });
   }, []);
+
+  const reorderExercise = useCallback((index: number, direction: 'up' | 'down') => {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= exercises.length) return;
+    const swapped = [...exercises];
+    [swapped[index], swapped[target]] = [swapped[target], swapped[index]];
+    // The link model assumes group members are contiguous (the Link button
+    // and display only ever look at neighbours). A member separated by this
+    // reorder is unlinked explicitly rather than left silently stale.
+    const normalized = swapped.map((e, i) => {
+      if (e.groupId === null) return e;
+      const adjacent =
+        (i > 0 && swapped[i - 1].groupId === e.groupId) ||
+        (i < swapped.length - 1 && swapped[i + 1].groupId === e.groupId);
+      return adjacent ? e : { ...e, groupId: null };
+    });
+    const next = alignSetsToGroups(normalized);
+    setExercises(next);
+    persistSets(next);
+  }, [exercises, alignSetsToGroups, persistSets]);
 
   const removeExercise = useCallback((index: number) => {
     setExercises(prev => prev.filter((_, i) => i !== index));
@@ -224,20 +254,10 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
       );
     }
 
-    next = next.map(e => {
-      if (e.sets.length === 0 || e.sets.every(s => (s.group_id ?? null) === e.groupId)) return e;
-      const sets = e.sets.map(s => {
-        if ((s.group_id ?? null) === e.groupId) return s;
-        const updated = { ...s, group_id: e.groupId };
-        pushOutbox({ table: 'sets', op: 'upsert', rowId: s.id, payload: toSetRow(updated) });
-        return updated;
-      });
-      return { ...e, sets };
-    });
-
+    next = alignSetsToGroups(next);
     setExercises(next);
     persistSets(next);
-  }, [exercises, persistSets]);
+  }, [exercises, alignSetsToGroups, persistSets]);
 
   // Mutations are local-first (AND-8): state and the persisted record update
   // synchronously and the server write goes through the outbox, so logging

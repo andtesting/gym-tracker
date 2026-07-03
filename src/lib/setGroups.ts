@@ -12,6 +12,9 @@ export interface DisplayGroup {
 // Groups a session's ordered sets for display. Consecutive sets sharing a
 // group_id form one superset group (exercises interleave inside it);
 // otherwise consecutive sets of the same exercise group as before.
+// Non-contiguous same-group runs are NOT re-merged — same behaviour as the
+// old consecutive-name grouping, and the useWorkout adjacency invariant
+// keeps group members contiguous in practice.
 export function buildDisplayGroups(sets: SetWithExercise[]): DisplayGroup[] {
   interface Acc { key: string; sets: SetWithExercise[]; isSuperset: boolean }
   const acc: Acc[] = [];
