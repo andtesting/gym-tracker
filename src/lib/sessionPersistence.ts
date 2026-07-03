@@ -71,11 +71,14 @@ export async function validatePersistedSession(sessionId: string): Promise<Persi
   try {
     const { data, error } = await supabase
       .from('sessions')
-      .select('id, finished_at')
+      .select('id, finished_at, deleted_at')
       .eq('id', sessionId)
       .maybeSingle();
     if (error) return 'unknown';
     if (!data) return 'missing';
+    // A soft-deleted session must not resume; treat it like a finished one
+    // so the persisted record is cleared.
+    if (data.deleted_at !== null) return 'finished';
     return data.finished_at === null ? 'active' : 'finished';
   } catch {
     return 'unknown';
