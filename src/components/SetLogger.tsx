@@ -4,6 +4,7 @@ import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
 import { isWeightPr } from '../lib/summary';
 import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../hooks/useToast';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
 import type { WeightUnit } from '../lib/settings';
 import LastSessionRef from './LastSessionRef';
@@ -37,6 +38,7 @@ interface Props {
   onLogSet: (data: { reps: number; weight_kg: number }) => Promise<void>;
   onEditSet: (setId: string, updates: { reps?: number; weight_kg?: number }) => Promise<void>;
   onDeleteSet: (setId: string) => Promise<void>;
+  onRestoreSet: (set: WorkoutSet) => boolean;
   onRemoveExercise: () => void;
   onBackToPlan?: () => void;
 }
@@ -52,9 +54,11 @@ export default function SetLogger({
   onLogSet,
   onEditSet,
   onDeleteSet,
+  onRestoreSet,
   onRemoveExercise,
   onBackToPlan,
 }: Props) {
+  const toast = useToast();
   const { settings } = useSettings();
   const unit = settings.unit;
   const [initialPrefill] = useState(() => prefillValues(loggedSets, histories, unit));
@@ -132,10 +136,17 @@ export default function SetLogger({
     }
   }
 
-  async function handleDelete(setId: string) {
-    if (!window.confirm('Delete this set?')) return;
+  // Delete-then-undo beats confirm-first mid-workout: no modal in the way,
+  // and a mistaken tap is one Undo away for the toast's lifetime.
+  async function handleDelete(set: WorkoutSet) {
     try {
-      await onDeleteSet(setId);
+      await onDeleteSet(set.id);
+      toast('Set deleted.', {
+        label: 'Undo',
+        onClick: () => {
+          if (!onRestoreSet(set)) toast('Could not undo: the exercise was removed.');
+        },
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to delete set');
     }
@@ -231,7 +242,7 @@ export default function SetLogger({
                     )}
                     <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
                     <button
-                      onClick={() => handleDelete(set.id)}
+                      onClick={() => handleDelete(set)}
                       style={{
                         color: 'var(--color-danger)',
                         background: 'none',

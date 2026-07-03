@@ -488,6 +488,23 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 28px;
 }
 
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+}
+.confirm-sheet {
+  background: var(--color-bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 480px;
+}
+
 .session-notes {
   background: var(--color-surface);
   border-left: 3px solid var(--color-accent);

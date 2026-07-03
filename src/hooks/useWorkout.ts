@@ -249,6 +249,20 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     pushOutbox({ table: 'sets', op: 'upsert', rowId: setId, payload: toSetRow(updated) });
   }, [exercises, persistSets]);
 
+  // Undo for a just-deleted set: reinsert with the SAME id, so the outbox
+  // replays delete-then-upsert and the server converges on the restored row.
+  const restoreSet = useCallback((set: WorkoutSet): boolean => {
+    const idx = exercises.findIndex(e => e.exercise.id === set.exercise_id);
+    if (idx === -1) return false;
+    const next = exercises.map((e, i) =>
+      i === idx ? { ...e, sets: [...e.sets, set].sort((a, b) => a.set_order - b.set_order) } : e,
+    );
+    setExercises(next);
+    persistSets(next);
+    pushOutbox({ table: 'sets', op: 'upsert', rowId: set.id, payload: toSetRow(set) });
+    return true;
+  }, [exercises, persistSets]);
+
   const deleteSet = useCallback(async (exerciseIndex: number, setId: string) => {
     const next = exercises.map((e, i) =>
       i === exerciseIndex ? { ...e, sets: e.sets.filter(s => s.id !== setId) } : e,
@@ -284,6 +298,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     logSet,
     editSet,
     deleteSet,
+    restoreSet,
     finish,
     loading,
     lastSetId,

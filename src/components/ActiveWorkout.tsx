@@ -382,6 +382,7 @@ export default function ActiveWorkout({
           }}
           onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
           onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}
+          onRestoreSet={(set) => workout.restoreSet(set)}
           onRemoveExercise={() => workout.removeExercise(workout.activeIndex!)}
           onBackToPlan={() => switchExercise(null)}
         />

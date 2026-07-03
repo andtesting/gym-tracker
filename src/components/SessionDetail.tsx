@@ -7,6 +7,7 @@ import { formatRest } from '../lib/timer';
 import { useSettings } from '../hooks/useSettings';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
 import ExerciseSearch from './ExerciseSearch';
+import ConfirmSheet from './ConfirmSheet';
 import { useToast } from '../hooks/useToast';
 
 interface Props {
@@ -33,6 +34,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  const [confirm, setConfirm] = useState<{ title: string; message?: string; label: string; action: () => void } | null>(null);
   const toast = useToast();
   const { settings } = useSettings();
   const unit = settings.unit;
@@ -150,21 +152,34 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     }
   }
 
-  async function handleDeleteSet(setId: string) {
-    if (!window.confirm('Delete this set?')) return;
-    await deleteSet(setId);
-    setSets(prev => prev.filter(s => s.id !== setId));
-    setEditedSets(prev => {
-      const next = { ...prev };
-      delete next[setId];
-      return next;
+  function handleDeleteSet(setId: string) {
+    setConfirm({
+      title: 'Delete this set?',
+      label: 'Delete set',
+      action: async () => {
+        setConfirm(null);
+        await deleteSet(setId);
+        setSets(prev => prev.filter(s => s.id !== setId));
+        setEditedSets(prev => {
+          const next = { ...prev };
+          delete next[setId];
+          return next;
+        });
+      },
     });
   }
 
-  async function handleDeleteSession() {
-    if (!window.confirm('Delete this entire session? This cannot be undone.')) return;
-    await deleteSession(sessionId);
-    onBack();
+  function handleDeleteSession() {
+    setConfirm({
+      title: 'Delete this entire session?',
+      message: 'This cannot be undone.',
+      label: 'Delete session',
+      action: async () => {
+        setConfirm(null);
+        await deleteSession(sessionId);
+        onBack();
+      },
+    });
   }
 
   async function handleAddRetroactiveSet() {
@@ -391,6 +406,16 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
       >
         Delete Session
       </button>
+
+      {confirm && (
+        <ConfirmSheet
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.label}
+          onConfirm={confirm.action}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   );
 }
