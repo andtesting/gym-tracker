@@ -49,7 +49,9 @@ create table sessions (
   started_at timestamptz default now(),
   finished_at timestamptz,
   notes text,
-  source text not null default 'gym-tracker-pwa'
+  source text not null default 'gym-tracker-pwa',
+  -- Soft delete: the app never hard-deletes sessions (Layer 2 contract).
+  deleted_at timestamptz
 );
 
 -- Sets: individual sets within a session. Soft-deleted via deleted_at so

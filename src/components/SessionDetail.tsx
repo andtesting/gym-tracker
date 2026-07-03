@@ -170,7 +170,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   function handleDeleteSession() {
     setConfirm({
       title: 'Delete this entire session?',
-      message: 'This cannot be undone.',
+      message: 'It will no longer appear in the app.',
       label: 'Delete session',
       action: async () => {
         setConfirm(null);

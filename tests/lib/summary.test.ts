@@ -31,6 +31,7 @@ function makeHistory(...weights: number[]): ExerciseHistoryEntry {
       started_at: '2026-06-01T00:00:00Z',
       finished_at: '2026-06-01T01:00:00Z',
       notes: null,
+      deleted_at: null,
       routines: null,
     },
     sets: weights.map((w, i) => makeSet(8, w, i + 1)),

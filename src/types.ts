@@ -50,6 +50,8 @@ export interface Session {
   started_at: string;
   finished_at: string | null;
   notes: string | null;
+  // Soft delete: the app never hard-deletes sessions (Layer 2 contract).
+  deleted_at: string | null;
 }
 
 export interface SessionWithRoutine extends Session {

@@ -14,6 +14,7 @@ export async function fetchRecentSessions(limit = 20): Promise<SessionWithRoutin
   const { data, error } = await supabase
     .from('sessions')
     .select('*, routines(*)')
+    .is('deleted_at', null)
     .order('started_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -58,10 +59,13 @@ export async function finishSession(sessionId: string, finishedAt?: string): Pro
   if (error) throw error;
 }
 
+// Soft delete: the row (and its sets, untouched) stay on the server so
+// Layer 2 never loses data it already processed. Sets keep their own
+// deleted_at lifecycle; a session delete does not stamp them.
 export async function deleteSession(id: string): Promise<void> {
   const { error } = await supabase
     .from('sessions')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw error;
 }
@@ -83,6 +87,7 @@ export async function fetchLastSession(routineId: string): Promise<LastSessionDa
     .select('*')
     .eq('routine_id', routineId)
     .not('finished_at', 'is', null)
+    .is('deleted_at', null)
     .order('started_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -118,6 +123,7 @@ export interface ExportSetRow {
     started_at: string;
     finished_at: string | null;
     notes: string | null;
+    deleted_at: string | null;
     routines: { name: string } | null;
   };
   exercises: { name: string } | null;
@@ -146,7 +152,7 @@ export async function fetchExportSets(): Promise<ExportSetRow[]> {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from('sets')
-      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, rpe, notes, group_id, deleted_at, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, routines(name)), exercises(name)')
+      .select('set_order, set_type, reps, weight_kg, set_duration_seconds, rest_seconds, rpe, notes, group_id, deleted_at, started_at, completed_at, sessions!inner(id, started_at, finished_at, notes, deleted_at, routines(name)), exercises(name)')
       .order('id')
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -164,6 +170,7 @@ export async function fetchHeatmapSessions(startDate: string, endDate: string): 
     .select('id, routine_id, started_at, routines(name, color)')
     .gte('started_at', startDate)
     .lte('started_at', endDate)
+    .is('deleted_at', null)
     .order('started_at');
   if (error) throw error;
   return data as unknown as HeatmapSession[];
@@ -183,6 +190,7 @@ export async function fetchRecentVolumeSets(sinceIso: string): Promise<VolumeSet
     .select('reps, weight_kg, sessions!inner(started_at)')
     .gte('sessions.started_at', sinceIso)
     .not('sessions.finished_at', 'is', null)
+    .is('sessions.deleted_at', null)
     .is('deleted_at', null);
   if (error) throw error;
   return data as unknown as VolumeSetRow[];
@@ -207,6 +215,7 @@ export async function fetchExerciseHistories(
     .select('*, sessions!inner(*, routines(*))')
     .in('exercise_id', exerciseIds)
     .not('sessions.finished_at', 'is', null)
+    .is('sessions.deleted_at', null)
     .is('deleted_at', null);
   if (error) throw error;
 
@@ -266,6 +275,7 @@ export async function fetchRecentRoutineSessions(
     .select('*, routines(*)')
     .eq('routine_id', routineId)
     .not('finished_at', 'is', null)
+    .is('deleted_at', null)
     .order('started_at', { ascending: false })
     .limit(limit);
   if (sessionErr) throw sessionErr;
@@ -297,6 +307,7 @@ export async function fetchExerciseTrends(exerciseId: string, limit = 8) {
     .from('sets')
     .select('session_id, set_order, reps, weight_kg, sessions!inner(started_at)')
     .eq('exercise_id', exerciseId)
+    .is('sessions.deleted_at', null)
     .is('deleted_at', null)
     .order('set_order');
   if (error) throw error;

@@ -17,8 +17,10 @@ export interface ExportRow {
   rpe: number | null;
   set_notes: string | null;
   group_id: string | null;
-  // Export deliberately keeps soft-deleted rows; consumers filter on this.
+  // Export deliberately keeps soft-deleted rows (set- and session-level);
+  // consumers filter on these.
   deleted_at: string | null;
+  session_deleted_at: string | null;
 }
 
 // Original ten columns first so existing downstream consumers keep working;
@@ -28,7 +30,7 @@ const CSV_HEADERS = [
   'date', 'routine', 'exercise', 'set_type', 'reps', 'weight_kg',
   'set_duration_seconds', 'rest_seconds', 'started_at', 'completed_at',
   'session_id', 'session_started_at', 'session_finished_at', 'session_notes',
-  'rpe', 'set_notes', 'group_id', 'deleted_at',
+  'rpe', 'set_notes', 'group_id', 'deleted_at', 'session_deleted_at',
 ] as const;
 
 function escapeCSV(value: string | number | null): string {
@@ -55,6 +57,7 @@ interface ExportSession {
   started_at: string;
   finished_at: string | null;
   notes: string | null;
+  deleted_at: string | null;
   exercises: {
     name: string;
     sets: {
@@ -85,6 +88,7 @@ export function toJSON(rows: ExportRow[]): string {
         started_at: row.session_started_at,
         finished_at: row.session_finished_at,
         notes: row.session_notes,
+        deleted_at: row.session_deleted_at,
         exercises: [],
       });
     }

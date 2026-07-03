@@ -22,6 +22,7 @@ const rows: ExportRow[] = [
     set_notes: 'left shoulder twinge',
     group_id: 'grp-1',
     deleted_at: null,
+    session_deleted_at: null,
   },
   {
     date: '2026-04-28',
@@ -42,6 +43,7 @@ const rows: ExportRow[] = [
     set_notes: null,
     group_id: null,
     deleted_at: null,
+    session_deleted_at: null,
   },
   {
     date: '2026-04-28',
@@ -62,6 +64,7 @@ const rows: ExportRow[] = [
     set_notes: null,
     group_id: null,
     deleted_at: null,
+    session_deleted_at: null,
   },
 ];
 
@@ -86,21 +89,22 @@ const secondSessionRow: ExportRow = {
   set_notes: null,
     group_id: null,
     deleted_at: null,
+    session_deleted_at: null,
 };
 
 describe('toCSV', () => {
   it('produces correct header row', () => {
     const csv = toCSV(rows);
     const header = csv.split('\n')[0];
-    expect(header).toBe('date,routine,exercise,set_type,reps,weight_kg,set_duration_seconds,rest_seconds,started_at,completed_at,session_id,session_started_at,session_finished_at,session_notes,rpe,set_notes,group_id,deleted_at');
+    expect(header).toBe('date,routine,exercise,set_type,reps,weight_kg,set_duration_seconds,rest_seconds,started_at,completed_at,session_id,session_started_at,session_finished_at,session_notes,rpe,set_notes,group_id,deleted_at,session_deleted_at');
   });
 
   it('produces correct data rows', () => {
     const csv = toCSV(rows);
     const lines = csv.split('\n');
     expect(lines).toHaveLength(4); // header + 3 rows
-    expect(lines[1]).toBe('2026-04-28,back A,Machine Lat Pulldown,warmup,10,25,30,60,2026-04-28T08:00:00Z,2026-04-28T08:00:30Z,s1,2026-04-27T22:00:00Z,2026-04-27T23:00:00Z,,8.5,left shoulder twinge,grp-1,');
-    expect(lines[3]).toBe('2026-04-28,back A,Dumbbell Bicep Curl,working,6,16,20,,,,s1,2026-04-27T22:00:00Z,2026-04-27T23:00:00Z,,,,,');
+    expect(lines[1]).toBe('2026-04-28,back A,Machine Lat Pulldown,warmup,10,25,30,60,2026-04-28T08:00:00Z,2026-04-28T08:00:30Z,s1,2026-04-27T22:00:00Z,2026-04-27T23:00:00Z,,8.5,left shoulder twinge,grp-1,,');
+    expect(lines[3]).toBe('2026-04-28,back A,Dumbbell Bicep Curl,working,6,16,20,,,,s1,2026-04-27T22:00:00Z,2026-04-27T23:00:00Z,,,,,,');
   });
 
   it('returns header only for empty data', () => {
@@ -131,6 +135,7 @@ describe('toJSON', () => {
     expect(parsed[0].started_at).toBe('2026-04-27T22:00:00Z');
     expect(parsed[0].finished_at).toBe('2026-04-27T23:00:00Z');
     expect(parsed[0].notes).toBeNull();
+    expect(parsed[0].deleted_at).toBeNull();
   });
 
   it('groups sets by exercise within a session', () => {
