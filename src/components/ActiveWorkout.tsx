@@ -252,11 +252,13 @@ export default function ActiveWorkout({
         <TimerDisplay
           mode={timer.mode}
           elapsed={timer.elapsed}
-          restTargetSeconds={
-            settings.restCountdown
-              ? activeExercise?.template?.target_rest_seconds ?? DEFAULT_REST_TARGET_SECONDS
-              : null
-          }
+          restTargetSeconds={(() => {
+            if (!settings.restCountdown) return null;
+            const target = activeExercise?.template?.target_rest_seconds;
+            // Non-positive coach-written targets degrade to the default so
+            // "Countdown" always counts down.
+            return target != null && target > 0 ? target : DEFAULT_REST_TARGET_SECONDS;
+          })()}
         />
       )}
 
