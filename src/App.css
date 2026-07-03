@@ -10,6 +10,7 @@
   --color-warning: #f59e0b;
   --color-danger: #dc2626;
   --color-heatmap-empty: #e5e5e5;
+  --color-accent-soft: #2563eb;
   --radius: 8px;
   --touch-min: 44px;
 }
@@ -27,6 +28,7 @@
     --color-warning: #fbbf24;
     --color-danger: #ef4444;
     --color-heatmap-empty: #26282c;
+    --color-accent-soft: #93c5fd;
   }
 }
 
@@ -336,7 +338,7 @@ input:focus, select:focus {
   padding: 2px 8px;
   border-radius: 12px;
   background: var(--color-accent-light);
-  color: var(--color-accent);
+  color: var(--color-accent-soft);
   cursor: pointer;
   white-space: nowrap;
   border: none;
