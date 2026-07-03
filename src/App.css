@@ -301,6 +301,83 @@ input:focus, select:focus {
   z-index: 100;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
+.qc-values {
+  display: flex;
+  gap: 10px;
+}
+.qc-value {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  min-height: 64px;
+}
+.qc-value-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+.qc-number {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.qc-unit {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+.qc-chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.qc-chip {
+  flex: 1;
+  min-height: var(--touch-min);
+  padding: 6px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.numpad-key {
+  min-height: 52px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.numpad-key:disabled {
+  color: var(--color-border);
+}
+.numpad-done {
+  grid-column: 1 / -1;
+  min-height: var(--touch-min);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 .toast-action {
   background: rgba(255, 255, 255, 0.2);
   color: white;
