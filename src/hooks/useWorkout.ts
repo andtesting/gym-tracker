@@ -338,8 +338,9 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     exercisesRef.current = exercises;
   }, [exercises]);
 
-  // Undo for a just-deleted set: reinsert with the SAME id, so the outbox
-  // replays delete-then-upsert and the server converges on the restored row.
+  // Undo for a just-deleted set: reinsert with the SAME id, so the FIFO
+  // outbox replays upsert(deleted_at)-then-upsert(null) and the server
+  // converges on the restored row.
   const restoreSet = useCallback((set: WorkoutSet): boolean => {
     const current = exercisesRef.current;
     const idx = current.findIndex(e => e.exercise.id === set.exercise_id);
