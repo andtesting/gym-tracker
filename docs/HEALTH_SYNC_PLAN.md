@@ -196,5 +196,13 @@ The DIY route wins on control and fit; HAE stays documented as the per-signal fa
 
 - Writing anything back to Health (unnecessary: Watch dual-logging already covers the envelope; decided in the V2 plan).
 - Real-time/in-workout streaming to Layer 2 (coach is cold-path by design).
-- Background continuous HR, steps, stand hours, respiratory rate: excluded until a coaching use exists.
+- Background continuous HR, steps, stand hours: excluded from THIS pipeline (see section 13 — they live in the bulk path). Respiratory rate was promoted into the hot path by the addendum.
 - Native app: unchanged gate from the V2 plan.
+
+## 13. Addendum 2026-07-04: holistic scope, two pipes
+
+Andy widened the goal from "coach inputs" to a holistic health engine. Decision (after rejecting Shortcut-captures-everything — the binding constraint is Shortcuts' per-sample loop limits on the phone, not Supabase storage):
+
+- **Hot path (this document's pipeline), widened 6 → 12 signals.** Added: blood oxygen (`spo2`, %), body fat % (`body_fat_pct`), lean body mass (`lean_body_mass`, kg) — both Withings-sourced — respiratory rate (`respiratory_rate`, breaths/min), wrist temperature (`wrist_temp`, °C), walking HR average (`walking_hr_avg`, bpm). All low-frequency (≤ a handful of rows/day). Probe result: HRV and Sleep both available on Andy's iOS; no fallback needed. Mindful minutes considered and dropped (unused on his Watch).
+- **Bulk path (new, separate project): Apple Health `export.zip` → local lake (DuckDB).** Periodic manual export (monthly/quarterly; each export contains the FULL history, so cadence can't lose data) parsed locally. This is where all-day heart rate, steps, active energy, stand hours, and every other type live — with complete multi-year backfill the daily pipeline can never provide. Zero Supabase volume. Parser is its own design/build session.
+- Explicitly rejected: capture-everything in the Shortcut (volume kills Shortcuts runs; ~60 hand-built blocks; duplicates the bulk path without its history). HAE remains the documented fallback if a daily-everything need ever materialises.

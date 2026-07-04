@@ -19,14 +19,11 @@ The ingest token was generated inside the database and never written down anywhe
 
 Rotation, any time: `update health.config set value = translate(encode(extensions.gen_random_bytes(32), 'base64'), '+/=', '-_'), updated_at = now() where key = 'INGEST_TOKEN';` then re-fetch and re-paste into the one Shortcut action.
 
-## 1. The probe (2 min — do this first)
+## 1. The probe — DONE 2026-07-04
 
-In a scratch Shortcut, add the action **Find Health Samples** and open its **Type** picker:
+Andy ran the probe: **Heart Rate Variability and Sleep Analysis are both available** in Shortcuts' Find Health Samples type picker (along with everything else in scope). All sections below apply; no fallback needed.
 
-- Is **Heart Rate Variability** listed? → HRV is in scope.
-- Is **Sleep Analysis** (or "Sleep") listed? → Sleep is in scope.
-
-If either is missing, skip its section below; Health Auto Export remains the documented per-signal fallback (HEALTH_SYNC_PLAN section 2). Delete the scratch Shortcut.
+Scope note (2026-07-04 addendum, see HEALTH_SYNC_PLAN section 13): the hot path was widened from 6 to 12 signals. The everything-archive lives in the separate bulk path (Apple Health `export.zip` → local lake), NOT in this Shortcut — do not add high-volume types (all-day heart rate, steps, active energy) here; they kill Shortcuts runs and duplicate what the bulk path captures with full history.
 
 ## 2. Build the `Health Sync` Shortcut
 
@@ -72,18 +69,36 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 
 1. Same shape as 2.3: Type **Resting Heart Rate**, `sample_type` = `resting_hr`, value in bpm. Append to `SampleDicts`.
 
-### 2.5 HRV (only if the probe found it)
+### 2.5 HRV
 
 1. Same shape: Type **Heart Rate Variability**, `sample_type` = `hrv_sdnn`, value in ms. Append to `SampleDicts`.
 
-### 2.6 Sleep (only if the probe found it)
+### 2.6 Sleep
 
 1. **Find Health Samples where**: Type **Sleep Analysis**, Start Date after `WindowStart` → `SleepSegments`
 2. **Repeat with Each** in `SleepSegments`:
     - **Dictionary**: `sample_type` = `sleep`, `measured_at` = `Repeat Item → Start Date` (ISO 8601 with time + offset), `ended_at` = `Repeat Item → End Date` (ISO 8601 with time + offset), `value` = `Repeat Item → Duration` (as Number, **minutes**), `detail` = `Repeat Item → Value` (the stage string, as Text)
     - **Add to Variable** `SampleDicts`
 
-### 2.7 Assemble and POST
+### 2.7 Body composition (Withings)
+
+Same three-action shape as 2.3 (Find Health Samples in window → Repeat → Dictionary → Add to `SampleDicts`), once per type:
+
+1. Type **Body Fat Percentage** → `sample_type` = `body_fat_pct`, value as Number (**percent**, e.g. 18.4)
+2. Type **Lean Body Mass** → `sample_type` = `lean_body_mass`, value as Number (**kg**)
+
+### 2.8 Vitals (Watch)
+
+Same shape again, once per type:
+
+1. Type **Blood Oxygen** (Oxygen Saturation) → `sample_type` = `spo2`, value as Number (**percent**, e.g. 97)
+2. Type **Respiratory Rate** → `sample_type` = `respiratory_rate`, value as Number (**breaths/min**)
+3. Type **Wrist Temperature** → `sample_type` = `wrist_temp`, value as Number (**°C**)
+4. Type **Walking Heart Rate Average** → `sample_type` = `walking_hr_avg`, value as Number (**bpm**)
+
+Every one of these needs only `sample_type`, `measured_at` (ISO 8601 with time + offset), and `value` — no `ended_at`, no `detail`, no `source` (the server defaults body composition to `withings-via-health` and the rest to `apple-watch-shortcut`).
+
+### 2.9 Assemble and POST
 
 1. **Dictionary** → `Payload`:
     - `batch_kind` = `daily` (Text)
@@ -96,7 +111,7 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
     - Request Body: **JSON** = `Payload`
     - → `IngestResponse`
 
-### 2.8 Result handling
+### 2.10 Result handling
 
 1. **Get Dictionary Value**: key `ok` from `IngestResponse` → `OkFlag`
 2. **If** `OkFlag` **is not** `1`. One positive condition only — the server returns `ok` on every response (`true` on success, `false` on 400/401/500, coerced by Shortcuts to `1`/`0`), and a missing-value test would stay silent on `false`. This single condition catches success=false, an absent key, and a non-JSON error body alike:
@@ -106,6 +121,12 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 ## 3. First run
 
 Run manually. iOS prompts for Health read access per type — **grant all requested**. Expect the counts notification; then cross-check in the SQL Editor:
+
+Units check on the first run: confirm `spo2` rows store ~97, not ~0.97 (HealthKit sometimes hands oxygen saturation back as a 0–1 fraction). If you see fractions, add a ×100 **Calculate** step to that one section:
+
+```sql
+select sample_type, value, measured_at from health.samples order by measured_at desc limit 20;
+```
 
 ```sql
 select batch_kind, received_at, counts from health.ingest_log order by received_at desc limit 5;
