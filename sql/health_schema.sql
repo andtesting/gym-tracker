@@ -39,7 +39,7 @@ create table if not exists health.samples (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   source text not null,                        -- 'withings-via-health', 'apple-watch-shortcut'
-  sample_type text not null,                   -- 'body_mass' | 'resting_hr' | 'hrv_sdnn' | 'sleep'
+  sample_type text not null,                   -- hot-path types; the accepted set lives in the edge function's SAMPLE_TYPES
   measured_at timestamptz not null,
   ended_at timestamptz,                        -- sleep segments have duration
   value numeric not null,                      -- kg, bpm, ms; sleep: minutes

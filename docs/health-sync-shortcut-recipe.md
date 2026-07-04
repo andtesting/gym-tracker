@@ -122,6 +122,12 @@ Every one of these needs only `sample_type`, `measured_at` (ISO 8601 with time +
 
 Run manually. iOS prompts for Health read access per type — **grant all requested**. Expect the counts notification; then cross-check in the SQL Editor:
 
+Units check on the first run: confirm `spo2` rows store ~97, not ~0.97 (HealthKit sometimes hands oxygen saturation back as a 0–1 fraction). If you see fractions, add a ×100 **Calculate** step to that one section:
+
+```sql
+select sample_type, value, measured_at from health.samples order by measured_at desc limit 20;
+```
+
 ```sql
 select batch_kind, received_at, counts from health.ingest_log order by received_at desc limit 5;
 ```
