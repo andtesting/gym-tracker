@@ -11,7 +11,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const MAX_HR_POINTS_PER_WORKOUT = 20_000;
-const SAMPLE_TYPES = new Set(["body_mass", "resting_hr", "hrv_sdnn", "sleep"]);
+// The hot-path signal set (HEALTH_SYNC_PLAN + 2026-07-04 addendum): daily
+// readiness/coaching signals only. The holistic everything-archive is the
+// separate bulk path (Apple Health export.zip -> local lake), not this
+// function. Units by type: kg, %, breaths/min, degrees C, bpm, ms; sleep in
+// minutes.
+const SAMPLE_TYPES = new Set([
+  "body_mass", "body_fat_pct", "lean_body_mass",
+  "resting_hr", "hrv_sdnn", "sleep",
+  "spo2", "respiratory_rate", "wrist_temp", "walking_hr_avg",
+]);
+// Signals the Withings scale writes into Health; everything else is Watch.
+const WITHINGS_TYPES = new Set(["body_mass", "body_fat_pct", "lean_body_mass"]);
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -151,7 +162,7 @@ function validateSample(raw: unknown, i: number, errors: string[]): Sample | nul
   if (s.detail != null && typeof s.detail !== "string") errors.push(`${at}.detail: not a string`);
   if (errors.length > before) return null;
 
-  const defaultSource = s.sample_type === "body_mass" ? "withings-via-health" : "apple-watch-shortcut";
+  const defaultSource = WITHINGS_TYPES.has(s.sample_type as string) ? "withings-via-health" : "apple-watch-shortcut";
   return {
     source: nonEmptyString(s.source) ? s.source.trim() : defaultSource,
     sample_type: s.sample_type as string,

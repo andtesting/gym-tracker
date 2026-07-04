@@ -22,6 +22,12 @@
     { "sample_type": "hrv_sdnn", "source": "curl-fixture", "measured_at": "2026-07-01T05:40:00+10:00", "value": 68 },
     { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-06-30T22:41:00+10:00", "ended_at": "2026-07-01T01:10:00+10:00", "value": 149, "detail": "core" },
     { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-07-01T01:10:00+10:00", "ended_at": "2026-07-01T02:05:00+10:00", "value": 55, "detail": "deep" },
-    { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-07-01T02:05:00+10:00", "ended_at": "2026-07-01T05:52:00+10:00", "value": 227, "detail": "rem" }
+    { "sample_type": "sleep", "source": "curl-fixture", "measured_at": "2026-07-01T02:05:00+10:00", "ended_at": "2026-07-01T05:52:00+10:00", "value": 227, "detail": "rem" },
+    { "sample_type": "body_fat_pct", "source": "curl-fixture", "measured_at": "2026-07-01T07:12:00+10:00", "value": 18.4 },
+    { "sample_type": "lean_body_mass", "source": "curl-fixture", "measured_at": "2026-07-01T07:12:00+10:00", "value": 64.2 },
+    { "sample_type": "spo2", "source": "curl-fixture", "measured_at": "2026-07-01T03:00:00+10:00", "value": 97 },
+    { "sample_type": "respiratory_rate", "source": "curl-fixture", "measured_at": "2026-07-01T03:00:00+10:00", "value": 14.5 },
+    { "sample_type": "wrist_temp", "source": "curl-fixture", "measured_at": "2026-07-01T03:00:00+10:00", "value": 36.2 },
+    { "sample_type": "walking_hr_avg", "source": "curl-fixture", "measured_at": "2026-07-01T12:00:00+10:00", "value": 96 }
   ]
 }
