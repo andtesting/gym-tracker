@@ -27,6 +27,9 @@ src/
   types.ts      Shared types. `Screen` discriminated union drives navigation.
   supabase.ts   Singleton client; `isSupabaseConfigured` gate.
   App.tsx       Auth gate + screen switch + cold-start active-workout resume.
+.claude/skills/ Project skills: pr-loop (mandatory shipping workflow),
+                health-check (ingest pipeline verification). Read before
+                shipping or touching the health pipeline.
 sql/schema.sql  Single-file schema, RLS policies, seed data. Run in Supabase SQL Editor.
 sql/health_schema.sql   Layer 2 `health` schema + ingest RPC (mirror of its migration).
 supabase/functions/     Edge functions. ingest-health: Apple Health ingestion dock
@@ -35,7 +38,8 @@ tests/lib/      Vitest unit tests (pure helpers only — no component or integra
 docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirements.md) and
                 product plans: DEEP_REVIEW_AND_V2_PLAN.md (Layer 1 roadmap), LAYER2_PLAN.md
                 (data platform + AI coach), HEALTH_SYNC_PLAN.md (Apple Health ingestion via
-                DIY iOS Shortcut, supersedes the buy-HAE step).
+                DIY iOS Shortcut; §13 addendum = holistic two-pipe scope), HEALTH_LAKE_PLAN.md
+                (bulk path: export.zip → local DuckDB, future separate project).
 ```
 
 ## Data model (Supabase)
@@ -82,6 +86,8 @@ The hook merges current sets with the last same-routine session into an ordered 
 - **Tests.** Pure helpers in `lib/` are unit-tested; UI components are not (deliberate — we use Chrome dev tools for UI verification).
 
 ## Workflow
+
+Every change ships through the **pr-loop skill** (`.claude/skills/pr-loop/SKILL.md`): branch → implement → verify → finder-agent review → steelman findings → amend → squash-merge → Linear. Mechanics below.
 
 - **Branches:** `fix/and-NN-slug` or `feature/and-NN-slug`. Linear ID always present.
 - **Issues:** Logged in Linear team `Andy C`, project `Gym Tracker`. Identifiers `AND-NN`.
