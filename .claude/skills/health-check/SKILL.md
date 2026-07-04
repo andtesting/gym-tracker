@@ -8,14 +8,16 @@ description: Use after any change to the ingest-health edge function or health s
 ## After changing the function or schema
 
 1. Redeploy via Supabase MCP (`deploy_edge_function`, `verify_jwt: false` — auth is the bearer token inside the RPC).
-2. Run the suite: `powershell -File docs/fixtures/health-ingest/run.ps1` — expects 7/7. Token comes from `.secrets.local.json` `health_ingest_token`; without it only the 3 auth-independent tests run.
-3. Verify every sample type landed: `select sample_type, count(*) from health.samples where source = 'curl-fixture' group by 1;`
-4. **Always clean up** (fixture rows land in live tables):
+2. **Note the current UTC time** — you need it to clean ingest_log precisely (the table has no source tag, and once real Shortcut batches exist, "delete everything" would destroy the gap-detection history the weekly check depends on).
+3. Run the suite: `powershell -File docs/fixtures/health-ingest/run.ps1` — expects 7/7. Token comes from `.secrets.local.json` `health_ingest_token`; without it only the 3 auth-independent tests run.
+4. Verify every sample type landed: `select sample_type, count(*) from health.samples where source = 'curl-fixture' group by 1;`
+5. **Always clean up** (fixture rows land in live tables):
 
    ```sql
    delete from health.workouts where source = 'curl-fixture';
    delete from health.samples  where source = 'curl-fixture';
-   delete from health.ingest_log;  -- ONLY if all log rows are fixture batches — check first when real ingests exist
+   delete from health.ingest_log where received_at >= '<UTC time from step 2>';
+   -- sanity-check the WHERE matched exactly the suite's batches (3: valid, resend, malformed) before assuming clean
    ```
 
 ## Weekly, once the 09:00 automation is live

@@ -13,10 +13,14 @@ CAPTURE (this repo)                          ANALYSIS (Layer 2, outside this app
 ┌─────────────────────────────┐
 │ PWA: live workout logging   │──Supabase──▶  coach / correlation views
 │ iOS Shortcut: 12 health     │   (Postgres)  (reads, never blocks capture)
-│ signals daily → edge fn     │
+│ signals daily → edge fn *   │
 └─────────────────────────────┘
-  Apple Health export.zip ────▶ local DuckDB lake (full history, every type)
-  (monthly/quarterly, manual)    docs/HEALTH_LAKE_PLAN.md — separate project
+  Apple Health export.zip ────▶ local DuckDB lake (full history, every type) **
+  (monthly/quarterly, manual)    docs/HEALTH_LAKE_PLAN.md
+
+*  server side live and verified; the phone-side Shortcut is not built yet
+   (HANDOFF step 1) — health tables are empty until it runs
+** designed, not built — future separate project
 ```
 
 The app is deliberately **capture-only**: hot-path logging, prior-performance reference, PR detection at log time. Processing, trends-across-domains, and the AI coach live at Layer 2 (`docs/LAYER2_PLAN.md`) and must never add friction to logging.
@@ -35,7 +39,7 @@ The app is deliberately **capture-only**: hot-path logging, prior-performance re
 
 **Reference & analysis surfaces**: home heatmap + weekly glance stats (streak, tonnage vs last week, next-up routine), session detail with full editing, trends per exercise, CSV/JSON export (append-only column contract for downstream consumers).
 
-**Health ingestion** (`supabase/functions/ingest-health`): a DIY iOS Shortcut posts 12 daily signals (weight, body fat, lean mass, workouts with windowed HR series, resting HR, HRV, sleep stages, SpO₂, respiratory rate, wrist temp, walking HR) to an edge function. Static-token auth, transactional idempotent upserts, loud whole-batch rejection on shape drift. Build guide: `docs/health-sync-shortcut-recipe.md`.
+**Health ingestion** (`supabase/functions/ingest-health`): a DIY iOS Shortcut posts 12 daily signals (weight, body fat, lean mass, workouts with windowed HR series, resting HR, HRV, sleep stages, SpO₂, respiratory rate, wrist temp, walking HR) to an edge function. Static-token auth, transactional idempotent upserts, loud whole-batch rejection on shape drift. Status: server side deployed and curl-verified 7/7; the Shortcut itself is built by hand on the phone and is **pending** — build guide: `docs/health-sync-shortcut-recipe.md`.
 
 **Data contract**: weight always stored in kg (display converts at the edge); deletes are soft at both set and session level (`deleted_at`; export keeps everything, every other reader filters); per-user RLS; provenance columns for Layer 2.
 
