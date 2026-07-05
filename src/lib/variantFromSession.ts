@@ -14,10 +14,13 @@ export interface VariantExerciseSeed {
 // exercises actually performed (>=1 logged set) against the set in the
 // template. Any add, drop, or swap counts (the "machines were busy" case).
 // An empty session (nothing logged) never deviates: there's nothing to save.
+// A plan-less routine (no template rows) never deviates either: there's no
+// plan to deviate from, so the offer would otherwise fire on every finish.
 export function sessionDeviatesFromTemplate(exercises: ActiveExercise[]): boolean {
   const done = new Set(exercises.filter(e => e.sets.length > 0).map(e => e.exercise.id));
   if (done.size === 0) return false;
   const template = new Set(exercises.filter(e => e.template !== null).map(e => e.exercise.id));
+  if (template.size === 0) return false;
   if (done.size !== template.size) return true;
   for (const id of done) if (!template.has(id)) return true;
   return false;

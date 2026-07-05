@@ -77,6 +77,14 @@ describe('sessionDeviatesFromTemplate', () => {
   it('is false for an empty session (nothing to save)', () => {
     expect(sessionDeviatesFromTemplate([entry('a', { inTemplate: true })])).toBe(false);
   });
+
+  it('is false for a plan-less routine (no template to deviate from)', () => {
+    const exercises = [
+      entry('a', { sets: [set('a', 60, 8)] }),
+      entry('b', { sets: [set('b', 40, 10)] }),
+    ];
+    expect(sessionDeviatesFromTemplate(exercises)).toBe(false);
+  });
 });
 
 describe('buildVariantSeed', () => {

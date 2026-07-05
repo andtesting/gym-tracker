@@ -3,7 +3,7 @@ import { Clock, ChevronUp, ChevronDown, Zap, EyeOff } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { fetchSession } from '../api/sessions';
-import { fetchRoutines, createRoutine } from '../api/routines';
+import { fetchRoutines, createRoutine, deleteRoutine } from '../api/routines';
 import { createRoutineExercises } from '../api/routineExercises';
 import { groupIntoCategories, nextVariantLabel, nextVariantOrder } from '../lib/routineCategories';
 import { sessionDeviatesFromTemplate, buildVariantSeed } from '../lib/variantFromSession';
@@ -134,6 +134,9 @@ export default function ActiveWorkout({
     data: WorkoutSummary;
     durationSeconds: number;
     startedAt: string | null;
+    // The name to title the reward screen with — the new variant when the
+    // session was saved-as-variant, else the routine it was done under.
+    routineName: string;
   } | null>(null);
   // Finish is deliberate now: it opens a confirmation with a summary rather
   // than ending immediately (the old fixed bottom bar was easy to fat-finger).
@@ -141,6 +144,11 @@ export default function ActiveWorkout({
   // When today deviated from the plan, the finish confirmation offers to save
   // it as a new variant of this category (opt-in, default off).
   const [saveAsVariant, setSaveAsVariant] = useState(false);
+  // Set once save-as-variant mints and repoints to a new variant. The summary
+  // notes upsert and title read this so they follow the new variant instead of
+  // repointing the session back to the started one. A ref, not state, so it
+  // doesn't re-run useWorkout and blank the summary behind the loading gate.
+  const repointedRef = useRef<{ id: string; name: string } | null>(null);
   const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
@@ -237,7 +245,12 @@ export default function ActiveWorkout({
     // The summary is the reward moment; skip it for an empty session.
     const workoutSummary = summariseWorkout(workout.exercises);
     if (workoutSummary.totalSets > 0) {
-      setSummary({ data: workoutSummary, durationSeconds: sessionElapsed, startedAt: persistedStartedAt });
+      setSummary({
+        data: workoutSummary,
+        durationSeconds: sessionElapsed,
+        startedAt: persistedStartedAt,
+        routineName: repointedRef.current?.name ?? routine.name,
+      });
     } else {
       onFinish();
     }
@@ -250,23 +263,30 @@ export default function ActiveWorkout({
   // the outbox), so this needs the network; on failure the workout is already
   // saved and only the variant is lost.
   async function createSessionVariant(cat: RoutineCategory, startedAt: string | null) {
+    let created: Routine | null = null;
     try {
       const label = nextVariantLabel(cat.variants);
       const order = nextVariantOrder(cat.variants);
       const color = cat.variants.find(v => v.id === routine.id)?.color ?? cat.variants[0]?.color;
-      const created = await createRoutine(`${cat.name} ${label}`, cat.variants.length, {
+      created = await createRoutine(`${cat.name} ${label}`, cat.variants.length, {
         category: cat.name,
         variant_label: label,
         variant_order: order,
         color,
       });
       await createRoutineExercises(
-        buildVariantSeed(workout.exercises).map(r => ({ ...r, routine_id: created.id })),
+        buildVariantSeed(workout.exercises).map(r => ({ ...r, routine_id: created!.id })),
       );
       const payload: Record<string, unknown> = { id: sessionId, routine_id: created.id };
       if (startedAt) payload.started_at = startedAt;
       pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
+      // The session now belongs to the new variant; record it so the summary
+      // notes upsert repoints there too rather than back to the started one.
+      repointedRef.current = { id: created.id, name: created.name };
     } catch {
+      // Roll back a routine created without its template, so the switcher never
+      // surfaces an empty-plan variant. Best-effort; the workout is safe either way.
+      if (created) deleteRoutine(created.id).catch(() => {});
       toast('Workout saved, but the new variant could not be created.');
     }
   }
@@ -278,7 +298,7 @@ export default function ActiveWorkout({
     // own fields so the upsert can reconstruct the row if the creation write
     // was lost; server-created sessions send only the changed column.
     if (summary?.startedAt) {
-      payload.routine_id = routine.id;
+      payload.routine_id = repointedRef.current?.id ?? routine.id;
       payload.started_at = summary.startedAt;
     }
     pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
@@ -592,7 +612,7 @@ export default function ActiveWorkout({
 
       {summary && (
         <SessionSummary
-          routineName={routine.name}
+          routineName={summary.routineName}
           durationSeconds={summary.durationSeconds}
           summary={summary.data}
           onSaveNotes={saveSummaryNotes}
