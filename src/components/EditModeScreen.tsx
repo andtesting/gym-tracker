@@ -4,7 +4,8 @@ import { fetchRoutines, createRoutine, updateRoutine, deleteRoutine } from '../a
 import { fetchExercises, updateExercise, deleteExercise } from '../api/exercises';
 import { fetchMuscleGroups, createMuscleGroup, updateMuscleGroup, deleteMuscleGroup } from '../api/muscleGroups';
 import { fetchRoutineExercises, addRoutineExercise, updateRoutineExercise, deleteRoutineExercise } from '../api/routineExercises';
-import type { Routine, Exercise, MuscleGroup, RoutineExerciseWithExercise } from '../types';
+import type { Routine, RoutineCategory, Exercise, MuscleGroup, RoutineExerciseWithExercise } from '../types';
+import { groupIntoCategories, nextVariantLabel, nextVariantOrder } from '../lib/routineCategories';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
 import { formatWeight, displayToKg, unitLabel } from '../lib/units';
@@ -172,9 +173,86 @@ export default function EditModeScreen({ onBack }: Props) {
   async function handleAddRoutine() {
     const trimmed = newRoutineName.trim();
     if (!trimmed) return;
+    // A bare "New routine" is its own standalone category (createRoutine
+    // defaults category = name, variant_label/order null).
     const routine = await createRoutine(trimmed, routines.length);
-    setRoutines(prev => [...prev, routine].sort((a, b) => a.name.localeCompare(b.name)));
+    setRoutines(prev => [...prev, routine]);
     setNewRoutineName('');
+  }
+
+  // Renames a category across all its variants: the `category` grouping key,
+  // and each variant's display name where it followed the "{category} …"
+  // convention (so "Legs A" tracks a Legs→Back rename to "Back A").
+  function renamedForCategory(name: string, oldCat: string, newCat: string): string {
+    if (name === oldCat) return newCat;
+    if (name.startsWith(oldCat + ' ')) return newCat + name.slice(oldCat.length);
+    return name;
+  }
+
+  async function handleCategoryRename(category: RoutineCategory, newName: string) {
+    try {
+      await Promise.all(category.variants.map(v => {
+        const name = renamedForCategory(v.name, category.name, newName);
+        return updateRoutine(v.id, name === v.name ? { category: newName } : { category: newName, name });
+      }));
+      const ids = new Set(category.variants.map(v => v.id));
+      setRoutines(prev => prev.map(r =>
+        ids.has(r.id)
+          ? { ...r, category: newName, name: renamedForCategory(r.name, category.name, newName) }
+          : r,
+      ));
+    } catch {
+      toast('Failed to rename category.');
+    }
+  }
+
+  // Adds a variant to a category. A bare standalone (its sole routine has no
+  // label) is first promoted to variant A, so the new one becomes B and the
+  // category reads as A/B rather than "· / A".
+  async function handleAddVariant(category: RoutineCategory) {
+    try {
+      let variants = category.variants;
+      const sole = variants.length === 1 ? variants[0] : null;
+      if (sole && sole.variant_label === null) {
+        await updateRoutine(sole.id, { variant_label: 'A', variant_order: 0 });
+        setRoutines(prev => prev.map(r =>
+          r.id === sole.id ? { ...r, variant_label: 'A', variant_order: 0 } : r,
+        ));
+        variants = [{ ...sole, variant_label: 'A', variant_order: 0 }];
+      }
+      const label = nextVariantLabel(variants);
+      const created = await createRoutine(`${category.name} ${label}`, routines.length, {
+        category: category.name,
+        variant_label: label,
+        variant_order: nextVariantOrder(variants),
+        color: variants[0]?.color,
+      });
+      setRoutines(prev => [...prev, created]);
+    } catch {
+      toast('Failed to add variant.');
+    }
+  }
+
+  async function handleVariantReorder(category: RoutineCategory, index: number, direction: 'up' | 'down') {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= category.variants.length) return;
+    const a = category.variants[index];
+    const b = category.variants[target];
+    const ao = a.variant_order ?? index;
+    const bo = b.variant_order ?? target;
+    try {
+      await Promise.all([
+        updateRoutine(a.id, { variant_order: bo }),
+        updateRoutine(b.id, { variant_order: ao }),
+      ]);
+      setRoutines(prev => prev.map(r => {
+        if (r.id === a.id) return { ...r, variant_order: bo };
+        if (r.id === b.id) return { ...r, variant_order: ao };
+        return r;
+      }));
+    } catch {
+      toast('Failed to reorder variants.');
+    }
   }
 
   async function handleExerciseNameChange(id: string, name: string) {
@@ -435,9 +513,51 @@ export default function EditModeScreen({ onBack }: Props) {
 
       <div className="edit-section">
         <h2 className="mb-16">Routines</h2>
-        {routines.map(routine => (
-          <div key={routine.id}>
+        {groupIntoCategories(routines).map(category => (
+          <div key={category.name} className="mb-16">
+            {/* Category header: renaming applies across all its variants. */}
             <div className="edit-row">
+              <input
+                className="edit-input"
+                key={category.name}
+                defaultValue={category.name}
+                style={{ fontWeight: 600 }}
+                onBlur={e => {
+                  const val = e.target.value.trim();
+                  if (val && val !== category.name) handleCategoryRename(category, val);
+                }}
+              />
+              <button
+                className="btn-small btn-secondary"
+                style={{ minHeight: 0, padding: '4px 8px' }}
+                onClick={() => handleAddVariant(category)}
+              >
+                + Variant
+              </button>
+            </div>
+            {category.variants.map((routine, vIdx) => (
+            <div key={routine.id} style={{ paddingLeft: 8 }}>
+            <div className="edit-row">
+              {category.variants.length > 1 && (
+                <div className="row" style={{ gap: 4 }}>
+                  <button
+                    className="btn-small btn-secondary"
+                    style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
+                    onClick={() => handleVariantReorder(category, vIdx, 'up')}
+                    disabled={vIdx === 0}
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    className="btn-small btn-secondary"
+                    style={{ padding: '4px', minHeight: 0, lineHeight: 0 }}
+                    onClick={() => handleVariantReorder(category, vIdx, 'down')}
+                    disabled={vIdx === category.variants.length - 1}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
+              )}
               <button
                 className="colour-swatch"
                 style={{ background: routine.color }}
@@ -453,6 +573,11 @@ export default function EditModeScreen({ onBack }: Props) {
                   if (val && val !== routine.name) handleRoutineNameChange(routine.id, val);
                 }}
               />
+              {routine.variant_label && (
+                <span className="muscle-badge" style={{ pointerEvents: 'none' }}>
+                  {routine.variant_label}
+                </span>
+              )}
               <button
                 className="btn-small btn-secondary"
                 style={{ minHeight: 0, padding: '4px 8px' }}
@@ -554,6 +679,8 @@ export default function EditModeScreen({ onBack }: Props) {
                 <ExerciseSearch onSelect={handleAddToPlan} />
               </div>
             )}
+            </div>
+            ))}
           </div>
         ))}
         <div className="row mt-8">
@@ -561,7 +688,7 @@ export default function EditModeScreen({ onBack }: Props) {
             className="edit-input"
             value={newRoutineName}
             onChange={e => setNewRoutineName(e.target.value)}
-            placeholder="New routine name"
+            placeholder="New category name"
             onKeyDown={e => e.key === 'Enter' && handleAddRoutine()}
           />
           <button className="btn-primary btn-small" onClick={handleAddRoutine}>Add</button>
