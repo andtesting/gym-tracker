@@ -16,7 +16,7 @@ import { DEFAULT_REST_TARGET_SECONDS } from '../lib/timer';
 import type { WorkoutSummary } from '../lib/summary';
 import { pushOutbox } from '../lib/outbox';
 import { useSettings } from '../hooks/useSettings';
-import { formatWeight, unitLabel } from '../lib/units';
+import { formatWeight, unitLabel, kgToDisplay } from '../lib/units';
 import ExerciseSearch from './ExerciseSearch';
 import SetLogger from './SetLogger';
 import TimerDisplay from './TimerDisplay';
@@ -87,6 +87,9 @@ export default function ActiveWorkout({
     durationSeconds: number;
     startedAt: string | null;
   } | null>(null);
+  // Finish is deliberate now: it opens a confirmation with a summary rather
+  // than ending immediately (the old fixed bottom bar was easy to fat-finger).
+  const [confirmingFinish, setConfirmingFinish] = useState(false);
   const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
@@ -493,11 +496,69 @@ export default function ActiveWorkout({
         />
       )}
 
-      <div className="bottom-bar">
-        <button className="btn-danger" onClick={handleFinish} style={{ width: '100%', maxWidth: 480 }}>
-          {retroactive ? 'Save Past Workout' : 'Finish Workout'}
-        </button>
-      </div>
+      {/* At the end of the page (not a fixed bar) so it can't be fat-fingered
+          mid-workout; finishing goes through a confirmation. */}
+      <button
+        className="btn-danger mt-16"
+        onClick={() => setConfirmingFinish(true)}
+        style={{ width: '100%' }}
+      >
+        {retroactive ? 'Save Past Workout' : 'Finish Workout'}
+      </button>
+
+      {confirmingFinish && (() => {
+        const s = summariseWorkout(workout.exercises);
+        const kg = Math.round(kgToDisplay(s.tonnageKg, settings.unit)).toLocaleString();
+        // Coarse minutes to match the reward screen shown a beat later, not the
+        // live-ticking MM:SS header.
+        const durationLabel = sessionElapsed >= 3600
+          ? `${Math.floor(sessionElapsed / 3600)}h ${Math.floor((sessionElapsed % 3600) / 60)}m`
+          : `${Math.floor(sessionElapsed / 60)}m`;
+        return (
+          <div className="confirm-backdrop" onClick={() => setConfirmingFinish(false)}>
+            <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
+              <h3>{retroactive ? 'Save this workout?' : 'End workout?'}</h3>
+              <div className="summary-stats mt-16">
+                <div className="summary-stat">
+                  <span className="summary-stat-value">{s.exercises.length}</span>
+                  <span className="summary-stat-label">exercise{s.exercises.length === 1 ? '' : 's'}</span>
+                </div>
+                <div className="summary-stat">
+                  <span className="summary-stat-value">{s.totalSets}</span>
+                  <span className="summary-stat-label">sets</span>
+                </div>
+                <div className="summary-stat">
+                  <span className="summary-stat-value">{kg}</span>
+                  <span className="summary-stat-label">{unitLabel(settings.unit)} lifted</span>
+                </div>
+                {!retroactive && (
+                  <div className="summary-stat">
+                    <span className="summary-stat-value">{durationLabel}</span>
+                    <span className="summary-stat-label">duration</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-small text-muted mt-16">
+                Are you sure you want to {retroactive ? 'save' : 'end'} this workout?
+              </p>
+              <button
+                className="btn-primary mt-16"
+                style={{ width: '100%' }}
+                onClick={() => { setConfirmingFinish(false); handleFinish(); }}
+              >
+                Yes, {retroactive ? 'save' : 'end'} workout
+              </button>
+              <button
+                className="btn-secondary mt-8"
+                style={{ width: '100%' }}
+                onClick={() => setConfirmingFinish(false)}
+              >
+                No, keep going
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
