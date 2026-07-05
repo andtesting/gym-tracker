@@ -67,6 +67,13 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
   const [setOrder, setSetOrder] = useState(1);
   const [lastSetId, setLastSetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // The routineId whose data is currently loaded into `exercises`. A variant
+  // switch changes `routineId` and re-runs the load effect; until that effect
+  // settles this lags behind, and the derived reload gate (see the returned
+  // `loading`) keeps the stale plan from rendering — so the header can't show
+  // the new variant while the plan shows the old one, and a set can't be
+  // logged into the outgoing template only to be clobbered by the reload.
+  const [loadedRoutineId, setLoadedRoutineId] = useState(routineId);
   const toast = useToast();
 
   useEffect(() => {
@@ -160,7 +167,13 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
         console.error('Failed to load session data:', e);
         toast('Failed to load session data. Check your connection and reopen the workout.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // Mark this routineId's data as the one now on screen, ungating the
+        // reload block. In finally (not the then) so a failed switch-load also
+        // ungates rather than leaving the plan stuck behind the gate.
+        setLoadedRoutineId(routineId);
+        setLoading(false);
+      });
   }, [sessionId, routineId, retroactive, toast]);
 
   const persistSets = useCallback((next: ActiveExercise[]) => {
@@ -419,7 +432,10 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     deleteSet,
     restoreSet,
     finish,
-    loading,
+    // True while a variant switch's reload is in flight (loadedRoutineId still
+    // trails routineId), so callers gate the plan/logger behind the same
+    // early-return the initial load already uses.
+    loading: loading || loadedRoutineId !== routineId,
     lastSetId,
     retroactive,
   };
