@@ -17,12 +17,19 @@ create table muscle_groups (
   constraint muscle_groups_user_name_key unique (user_id, name)
 );
 
--- Routines: user-defined workout labels (e.g. "back A", "chest B")
+-- Routines: user-defined workout labels. A `category` groups variants (e.g.
+-- category "Legs" with variant_label A/B/C); each variant is its own routine
+-- with its own routine_exercises template and session references. category null
+-- (or a single-variant category) is just a standalone routine. See
+-- docs/ROUTINE_VARIANTS_PLAN.md.
 create table routines (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name text not null,
   color text default '#2563eb',
+  category text,
+  variant_label text,
+  variant_order integer,
   created_at timestamptz default now(),
   constraint routines_user_name_key unique (user_id, name)
 );

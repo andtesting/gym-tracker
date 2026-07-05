@@ -9,7 +9,20 @@ export interface Routine {
   id: string;
   name: string;
   color: string;
+  // Variant grouping (docs/ROUTINE_VARIANTS_PLAN.md): routines sharing a
+  // `category` are variants of it; `variant_label` (A/B/C) + `variant_order`
+  // drive display and cycling. All three null on a legacy/ungrouped routine.
+  category: string | null;
+  variant_label: string | null;
+  variant_order: number | null;
   created_at: string;
+}
+
+// A category and its ordered variants, derived from the flat routine list.
+export interface RoutineCategory {
+  // The grouping key: `category` when set, else the routine's own name.
+  name: string;
+  variants: Routine[];
 }
 
 export interface Exercise {
