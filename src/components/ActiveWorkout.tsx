@@ -3,10 +3,13 @@ import { Clock, ChevronUp, ChevronDown, Zap, EyeOff } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { fetchSession } from '../api/sessions';
-import { fetchRoutines } from '../api/routines';
-import { groupIntoCategories } from '../lib/routineCategories';
+import { fetchRoutines, createRoutine, deleteRoutine } from '../api/routines';
+import { createRoutineExercises } from '../api/routineExercises';
+import { groupIntoCategories, nextVariantLabel, nextVariantOrder } from '../lib/routineCategories';
+import { sessionDeviatesFromTemplate, buildVariantSeed } from '../lib/variantFromSession';
 import { cachedFetch } from '../lib/cache';
-import type { Routine } from '../types';
+import { useToast } from '../hooks/useToast';
+import type { Routine, RoutineCategory } from '../types';
 import {
   saveActiveWorkout,
   loadActiveWorkout,
@@ -55,21 +58,23 @@ export default function ActiveWorkout({
   const [routine, setRoutine] = useState({ id: routineId, name: routineName });
   const workout = useWorkout(sessionId, routine.id, { retroactive });
   const { settings } = useSettings();
+  const toast = useToast();
 
-  // Sibling variants in this workout's category, for the pre-first-set
-  // switcher. Empty (switcher hidden) for a standalone/single-variant routine.
-  const [variants, setVariants] = useState<Routine[]>([]);
+  // This workout's category (the routine and its sibling variants). Drives the
+  // pre-first-set switcher and the save-as-variant offer on finish. Null for a
+  // routine not yet grouped, or while the routine list is still loading.
+  const [category, setCategory] = useState<RoutineCategory | null>(null);
   useEffect(() => {
     if (retroactive) return;
     cachedFetch('routines', fetchRoutines)
       .then(all => {
-        const cat = groupIntoCategories(all).find(c =>
-          c.variants.some(v => v.id === routineId),
+        setCategory(
+          groupIntoCategories(all).find(c => c.variants.some(v => v.id === routineId)) ?? null,
         );
-        setVariants(cat && cat.variants.length > 1 ? cat.variants : []);
       })
       .catch(() => {});
   }, [routineId, retroactive]);
+  const variants = category?.variants ?? [];
 
   // The session binds to its variant once the first set is logged (the set
   // rows carry the session_id, and the routine_id is now meaningful history).
@@ -129,10 +134,21 @@ export default function ActiveWorkout({
     data: WorkoutSummary;
     durationSeconds: number;
     startedAt: string | null;
+    // The name to title the reward screen with — the new variant when the
+    // session was saved-as-variant, else the routine it was done under.
+    routineName: string;
   } | null>(null);
   // Finish is deliberate now: it opens a confirmation with a summary rather
   // than ending immediately (the old fixed bottom bar was easy to fat-finger).
   const [confirmingFinish, setConfirmingFinish] = useState(false);
+  // When today deviated from the plan, the finish confirmation offers to save
+  // it as a new variant of this category (opt-in, default off).
+  const [saveAsVariant, setSaveAsVariant] = useState(false);
+  // Set once save-as-variant mints and repoints to a new variant. The summary
+  // notes upsert and title read this so they follow the new variant instead of
+  // repointing the session back to the started one. A ref, not state, so it
+  // doesn't re-run useWorkout and blank the summary behind the loading gate.
+  const repointedRef = useRef<{ id: string; name: string } | null>(null);
   const setStartedAtRef = useRef<string | null>(restoredTimer?.setStartedAt ?? null);
   // Rest measured when the user pressed Start Set, held until the following
   // Log Set so it can be stored as that set's `rest_seconds` (rest taken BEFORE
@@ -219,13 +235,59 @@ export default function ActiveWorkout({
     }
     const persistedStartedAt = loadActiveWorkout()?.startedAt ?? null;
     await workout.finish();
+    // Save-as-variant runs before clearActiveWorkout so it can still read the
+    // started_at for the session repoint. Best-effort: a failure here must not
+    // lose the finished workout, only the convenience variant.
+    if (saveAsVariant && category && sessionDeviatesFromTemplate(workout.exercises)) {
+      await createSessionVariant(category, persistedStartedAt);
+    }
     clearActiveWorkout();
     // The summary is the reward moment; skip it for an empty session.
     const workoutSummary = summariseWorkout(workout.exercises);
     if (workoutSummary.totalSets > 0) {
-      setSummary({ data: workoutSummary, durationSeconds: sessionElapsed, startedAt: persistedStartedAt });
+      setSummary({
+        data: workoutSummary,
+        durationSeconds: sessionElapsed,
+        startedAt: persistedStartedAt,
+        routineName: repointedRef.current?.name ?? routine.name,
+      });
     } else {
       onFinish();
+    }
+  }
+
+  // Mints a new variant in this category from today's actual exercises: next
+  // free label/order, this variant's colour, a template seeded from each
+  // performed exercise's top set (ROUTINE_VARIANTS_PLAN Q3), then repoints the
+  // just-finished session at it. routine_exercises are direct writes (not in
+  // the outbox), so this needs the network; on failure the workout is already
+  // saved and only the variant is lost.
+  async function createSessionVariant(cat: RoutineCategory, startedAt: string | null) {
+    let created: Routine | null = null;
+    try {
+      const label = nextVariantLabel(cat.variants);
+      const order = nextVariantOrder(cat.variants);
+      const color = cat.variants.find(v => v.id === routine.id)?.color ?? cat.variants[0]?.color;
+      created = await createRoutine(`${cat.name} ${label}`, cat.variants.length, {
+        category: cat.name,
+        variant_label: label,
+        variant_order: order,
+        color,
+      });
+      await createRoutineExercises(
+        buildVariantSeed(workout.exercises).map(r => ({ ...r, routine_id: created!.id })),
+      );
+      const payload: Record<string, unknown> = { id: sessionId, routine_id: created.id };
+      if (startedAt) payload.started_at = startedAt;
+      pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
+      // The session now belongs to the new variant; record it so the summary
+      // notes upsert repoints there too rather than back to the started one.
+      repointedRef.current = { id: created.id, name: created.name };
+    } catch {
+      // Roll back a routine created without its template, so the switcher never
+      // surfaces an empty-plan variant. Best-effort; the workout is safe either way.
+      if (created) deleteRoutine(created.id).catch(() => {});
+      toast('Workout saved, but the new variant could not be created.');
     }
   }
 
@@ -236,7 +298,7 @@ export default function ActiveWorkout({
     // own fields so the upsert can reconstruct the row if the creation write
     // was lost; server-created sessions send only the changed column.
     if (summary?.startedAt) {
-      payload.routine_id = routine.id;
+      payload.routine_id = repointedRef.current?.id ?? routine.id;
       payload.started_at = summary.startedAt;
     }
     pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
@@ -550,7 +612,7 @@ export default function ActiveWorkout({
 
       {summary && (
         <SessionSummary
-          routineName={routine.name}
+          routineName={summary.routineName}
           durationSeconds={summary.durationSeconds}
           summary={summary.data}
           onSaveNotes={saveSummaryNotes}
@@ -579,6 +641,11 @@ export default function ActiveWorkout({
         const durationLabel = sessionElapsed >= 3600
           ? `${Math.floor(sessionElapsed / 3600)}h ${Math.floor((sessionElapsed % 3600) / 60)}m`
           : `${Math.floor(sessionElapsed / 60)}m`;
+        // Offer save-as-variant only when today's exercises actually deviated
+        // from the plan (Q2), and only for a grouped, live workout.
+        const canSaveVariant = !retroactive && category !== null
+          && sessionDeviatesFromTemplate(workout.exercises);
+        const newVariantLabel = category ? nextVariantLabel(category.variants) : '';
         return (
           <div className="confirm-backdrop" onClick={() => setConfirmingFinish(false)}>
             <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
@@ -606,6 +673,23 @@ export default function ActiveWorkout({
               <p className="text-small text-muted mt-16">
                 Are you sure you want to {retroactive ? 'save' : 'end'} this workout?
               </p>
+              {canSaveVariant && (
+                <label
+                  className="row mt-16"
+                  style={{ gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={saveAsVariant}
+                    onChange={e => setSaveAsVariant(e.target.checked)}
+                    style={{ marginTop: 3 }}
+                  />
+                  <span className="text-small">
+                    Today differed from {routine.name}. Save it as a new variant{' '}
+                    <strong>{category!.name} {newVariantLabel}</strong>?
+                  </span>
+                </label>
+              )}
               <button
                 className="btn-primary mt-16"
                 style={{ width: '100%' }}
