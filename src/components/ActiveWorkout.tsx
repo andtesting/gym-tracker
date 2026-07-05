@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, ChevronUp, ChevronDown, Link2 } from 'lucide-react';
+import { Clock, ChevronUp, ChevronDown, Zap, EyeOff } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { fetchSession } from '../api/sessions';
@@ -310,10 +310,18 @@ export default function ActiveWorkout({
                         cursor: 'pointer',
                       }}
                     >
-                      <div className="row-between">
-                        <strong>{entry.exercise.name}</strong>
+                      <div className="row-between" style={{ gap: 8 }}>
+                        <strong style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {entry.exercise.name}
+                        </strong>
+                        {/* Fixed width + wrap so "N sets" / "today" lands in
+                            the same place on every card, regardless of the
+                            name length or the control cluster width. */}
                         {entry.sets.length > 0 && (
-                          <span className="text-small text-muted">
+                          <span
+                            className="text-small text-muted"
+                            style={{ flexShrink: 0, width: 42, textAlign: 'right', lineHeight: 1.15 }}
+                          >
                             {entry.sets.length} set{entry.sets.length === 1 ? '' : 's'} today
                           </span>
                         )}
@@ -346,7 +354,7 @@ export default function ActiveWorkout({
                       })()}
                     </button>
                     <div className="row" style={{ gap: 2, flexShrink: 0 }}>
-                      {i > 0 && (
+                      {i > 0 ? (
                         <button
                           className="pager-btn"
                           onClick={() => workout.toggleSuperset(i)}
@@ -358,8 +366,13 @@ export default function ActiveWorkout({
                             color: linkedWithPrev ? 'var(--color-accent)' : undefined,
                           }}
                         >
-                          <Link2 size={16} />
+                          <Zap size={16} />
                         </button>
+                      ) : (
+                        // Reserve the superset slot so the control cluster is
+                        // the same width on the first card as on the rest, and
+                        // the sets-today block stays aligned across cards.
+                        <span style={{ width: 24, flexShrink: 0 }} aria-hidden="true" />
                       )}
                       <button
                         className="pager-btn"
@@ -378,6 +391,15 @@ export default function ActiveWorkout({
                         style={{ minHeight: 32, padding: 4 }}
                       >
                         <ChevronDown size={16} />
+                      </button>
+                      <button
+                        className="pager-btn"
+                        onClick={() => workout.moveExerciseToEnd(i)}
+                        disabled={i === workout.exercises.length - 1}
+                        aria-label="Skip for today (move to bottom)"
+                        style={{ minHeight: 32, padding: 4 }}
+                      >
+                        <EyeOff size={16} />
                       </button>
                     </div>
                   </div>

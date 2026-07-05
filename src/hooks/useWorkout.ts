@@ -58,6 +58,19 @@ function flattenSets(exercises: ActiveExercise[]): SetWithExercise[] {
     .sort((a, b) => a.set_order - b.set_order);
 }
 
+// The link model assumes superset members are contiguous (the Link button and
+// display only ever look at neighbours). Any reorder/move that pulls a member
+// away from its group unlinks it, rather than leaving it silently stale.
+function normalizeGroupAdjacency(list: ActiveExercise[]): ActiveExercise[] {
+  return list.map((e, i) => {
+    if (e.groupId === null) return e;
+    const adjacent =
+      (i > 0 && list[i - 1].groupId === e.groupId) ||
+      (i < list.length - 1 && list[i + 1].groupId === e.groupId);
+    return adjacent ? e : { ...e, groupId: null };
+  });
+}
+
 export function useWorkout(sessionId: string, routineId: string, opts: UseWorkoutOptions = {}) {
   const retroactive = opts.retroactive ?? false;
   const [exercises, setExercises] = useState<ActiveExercise[]>([]);
@@ -210,17 +223,19 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     if (target < 0 || target >= exercises.length) return;
     const swapped = [...exercises];
     [swapped[index], swapped[target]] = [swapped[target], swapped[index]];
-    // The link model assumes group members are contiguous (the Link button
-    // and display only ever look at neighbours). A member separated by this
-    // reorder is unlinked explicitly rather than left silently stale.
-    const normalized = swapped.map((e, i) => {
-      if (e.groupId === null) return e;
-      const adjacent =
-        (i > 0 && swapped[i - 1].groupId === e.groupId) ||
-        (i < swapped.length - 1 && swapped[i + 1].groupId === e.groupId);
-      return adjacent ? e : { ...e, groupId: null };
-    });
-    const next = alignSetsToGroups(normalized);
+    const next = alignSetsToGroups(normalizeGroupAdjacency(swapped));
+    setExercises(next);
+    persistSets(next);
+  }, [exercises, alignSetsToGroups, persistSets]);
+
+  // "Skip for today": send an exercise to the bottom of the plan without
+  // deleting it. Same group-adjacency unlink as reorderExercise.
+  const moveExerciseToEnd = useCallback((index: number) => {
+    if (index < 0 || index >= exercises.length - 1) return;
+    const reordered = [...exercises];
+    const [moved] = reordered.splice(index, 1);
+    reordered.push(moved);
+    const next = alignSetsToGroups(normalizeGroupAdjacency(reordered));
     setExercises(next);
     persistSets(next);
   }, [exercises, alignSetsToGroups, persistSets]);
@@ -403,6 +418,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     addExercise,
     removeExercise,
     reorderExercise,
+    moveExerciseToEnd,
     toggleSuperset,
     logSet,
     editSet,
