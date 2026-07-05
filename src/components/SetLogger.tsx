@@ -204,7 +204,7 @@ export default function SetLogger({
             <p className="text-small text-muted">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header" style={{ gridTemplateColumns: '14px minmax(0,1fr) minmax(0,1fr) 26px 34px 22px', gap: 5, fontSize: '0.625rem' }}>
+              <div className="set-row set-row-header" style={{ gridTemplateColumns: '12px minmax(0,1fr) minmax(0,1fr) 24px 32px 20px', gap: 4, fontSize: '0.625rem' }}>
                 <span>#</span>
                 <span style={{ textAlign: 'right' }}>Reps</span>
                 <span style={{ textAlign: 'right' }}>{unitHeader(unit)}</span>
@@ -233,7 +233,7 @@ export default function SetLogger({
                     >
                       <div
                         className="set-row"
-                        style={{ gridTemplateColumns: '14px minmax(0,1fr) minmax(0,1fr) 26px 34px 22px', gap: 5 }}
+                        style={{ gridTemplateColumns: '12px minmax(0,1fr) minmax(0,1fr) 24px 32px 20px', gap: 4 }}
                       >
                         <span>{i + 1}</span>
                         <input
@@ -291,7 +291,7 @@ export default function SetLogger({
                   <div key={set.id}>
                     <div
                       className="set-row"
-                      style={{ gridTemplateColumns: '14px minmax(0,1fr) minmax(0,1fr) 26px 34px 22px', gap: 5 }}
+                      style={{ gridTemplateColumns: '12px minmax(0,1fr) minmax(0,1fr) 24px 32px 20px', gap: 4 }}
                     >
                       <span>{i + 1}</span>
                       <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, textAlign: 'right' }}>
