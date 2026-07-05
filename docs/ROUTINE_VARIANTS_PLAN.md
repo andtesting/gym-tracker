@@ -52,9 +52,20 @@ Because auto-detection can mis-split (e.g. a routine legitimately named "Zone 2"
 
 Each of these is its own PR through the loop; the migration PR ships first and alone.
 
-## 6. Open decisions for Andy (before I build)
+## 6. Decisions — confirmed 2026-07-05
 
-- **Q1 — default variant when picking a category**: (a) the one you did most recently in that category [recommended — matches "I usually do the last one"], (b) always A, (c) always the lowest variant_order.
-- **Q2 — create-variant prompt**: (a) only when today deviated from the template [recommended — less nagging], (b) always offer on finish, (c) never auto-prompt; a manual "save as variant" button only.
-- **Q3 — new variant's targets**: (a) leave targets null, capture only the exercise list + order [recommended — simplest, targets are set later], (b) seed target reps/weight from today's top set per exercise.
-- **Q4 — Edit-screen category management**: (a) include basic rename/reorder/recolor in this feature, (b) defer to a follow-up; auto-migration + create-on-finish is enough for v1 [recommended — smaller first cut].
+- **Q1 default variant = always A.** Picking a category starts on the lowest `variant_order` (variant A); cycle to others before the first set.
+- **Q2 save-variant prompt = only when today differed** from the started variant's template.
+- **Q3 new variant targets = seed from today.** The new variant's `routine_exercises` get `target_reps`/`target_weight_kg` from today's top set per exercise (top = heaviest), plus the exercise list and order. Rest/sets targets left null.
+- **Q4 Edit management = include now.** Category/variant rename, reorder, and recolor land in the Edit screen as part of this feature (step 6 is in scope, not deferred).
+
+## 7. Build sequence (PRs)
+
+1. **Data layer**: additive migration (add the 3 columns — safe, no backfill yet) + `Routine` type + `api/routines.ts` category-aware helpers. The backfill of EXISTING routines is a separate, reviewed step (§2) — new categories/variants work immediately; un-backfilled routines read as standalone until then.
+2. **Backfill** (after Andy okays the proposed mapping): populate category/variant_label/variant_order for existing routines.
+3. **PickRoutine**: list categories; category → start on variant A.
+4. **ActiveWorkout switcher**: cycle variants pre-first-set; lock after.
+5. **Finish**: deviation detection + save-as-variant (seed targets from today), extending the #50 confirmation.
+6. **Edit screen**: category/variant rename, reorder, recolor.
+
+Each is its own PR through the loop.
