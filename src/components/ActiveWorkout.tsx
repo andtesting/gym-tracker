@@ -3,6 +3,10 @@ import { Clock, ChevronUp, ChevronDown, Zap, EyeOff } from 'lucide-react';
 import { useWorkout } from '../hooks/useWorkout';
 import { useTimer } from '../hooks/useTimer';
 import { fetchSession } from '../api/sessions';
+import { fetchRoutines } from '../api/routines';
+import { groupIntoCategories } from '../lib/routineCategories';
+import { cachedFetch } from '../lib/cache';
+import type { Routine } from '../types';
 import {
   saveActiveWorkout,
   loadActiveWorkout,
@@ -43,8 +47,47 @@ export default function ActiveWorkout({
   onFinish,
   onHome,
 }: Props) {
-  const workout = useWorkout(sessionId, routineId, { retroactive });
+  // Which variant this workout is bound to. Starts at the picked variant (A)
+  // and can be switched before the first set (see the variant switcher below);
+  // switching re-runs useWorkout, reloading that variant's template into the
+  // plan. Held locally so the switch is self-contained; resume reads the same
+  // fields from the persisted record, which switchVariant keeps in sync.
+  const [routine, setRoutine] = useState({ id: routineId, name: routineName });
+  const workout = useWorkout(sessionId, routine.id, { retroactive });
   const { settings } = useSettings();
+
+  // Sibling variants in this workout's category, for the pre-first-set
+  // switcher. Empty (switcher hidden) for a standalone/single-variant routine.
+  const [variants, setVariants] = useState<Routine[]>([]);
+  useEffect(() => {
+    if (retroactive) return;
+    cachedFetch('routines', fetchRoutines)
+      .then(all => {
+        const cat = groupIntoCategories(all).find(c =>
+          c.variants.some(v => v.id === routineId),
+        );
+        setVariants(cat && cat.variants.length > 1 ? cat.variants : []);
+      })
+      .catch(() => {});
+  }, [routineId, retroactive]);
+
+  // The session binds to its variant once the first set is logged (the set
+  // rows carry the session_id, and the routine_id is now meaningful history).
+  // Before that, switching is free.
+  const hasLoggedSet = workout.exercises.some(e => e.sets.length > 0);
+
+  function switchVariant(v: Routine) {
+    if (v.id === routine.id || hasLoggedSet) return;
+    setRoutine({ id: v.id, name: v.name });
+    // Keep the persisted record (drives resume) and the session row in step.
+    updateActiveWorkout({ routineId: v.id, routineName: v.name });
+    const startedAt = loadActiveWorkout()?.startedAt ?? null;
+    const payload: Record<string, unknown> = { id: sessionId, routine_id: v.id };
+    // started_at covers the offline case where the session's insert is still
+    // queued ahead of us: our upsert then re-inserts identity-complete.
+    if (startedAt) payload.started_at = startedAt;
+    pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
+  }
   // Restore persisted timer anchors so an iOS PWA kill mid-set or mid-rest
   // keeps measuring instead of silently dropping the timing data (AND-8).
   // Anchors older than an hour are abandoned workouts, not rests; restoring
@@ -129,9 +172,9 @@ export default function ActiveWorkout({
     // unconditional save would wipe the locally persisted sets and timer.
     const persisted = loadActiveWorkout();
     if (persisted?.sessionId !== sessionId) {
-      saveActiveWorkout({ sessionId, routineId, routineName });
+      saveActiveWorkout({ sessionId, routineId: routine.id, routineName: routine.name });
     }
-  }, [sessionId, routineId, routineName, retroactive]);
+  }, [sessionId, routine.id, routine.name, retroactive]);
 
   useEffect(() => {
     if (retroactive) return;
@@ -193,7 +236,7 @@ export default function ActiveWorkout({
     // own fields so the upsert can reconstruct the row if the creation write
     // was lost; server-created sessions send only the changed column.
     if (summary?.startedAt) {
-      payload.routine_id = routineId;
+      payload.routine_id = routine.id;
       payload.started_at = summary.startedAt;
     }
     pushOutbox({ table: 'sessions', op: 'upsert', rowId: sessionId, payload });
@@ -223,7 +266,7 @@ export default function ActiveWorkout({
     <div>
       <div className="row-between mb-16">
         <div>
-          <h1>{routineName}{retroactive && <span className="text-small text-muted"> · past</span>}</h1>
+          <h1>{routine.name}{retroactive && <span className="text-small text-muted"> · past</span>}</h1>
           {retroactive ? (
             retroactiveDate && (
               <span className="text-small text-muted">
@@ -267,6 +310,28 @@ export default function ActiveWorkout({
 
       <ExerciseSearch onSelect={workout.addExercise} primaryMuscleGroupId={primaryMuscleGroupId} />
 
+      {/* Variant switcher: flip A/B/C before the first set. Hidden once a set
+          is logged (the session is then bound to this variant) and for
+          standalone routines. Switching reloads the chosen variant's plan. */}
+      {variants.length > 1 && workout.activeIndex === null && !hasLoggedSet && (
+        <div className="row mt-16" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="text-small text-muted">Variant</span>
+          {variants.map(v => {
+            const active = v.id === routine.id;
+            return (
+              <button
+                key={v.id}
+                className={active ? 'btn-primary btn-small' : 'btn-secondary btn-small'}
+                onClick={() => switchVariant(v)}
+                aria-pressed={active}
+              >
+                {v.variant_label ?? v.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {workout.activeIndex === null && (
         <div>
           {workout.exercises.length === 0 ? (
@@ -282,7 +347,7 @@ export default function ActiveWorkout({
                   .reduce<typeof recent.sets[number] | null>(
                     (best, s) => !best || s.weight_kg > best.weight_kg ? s : best, null,
                   );
-                const fromOther = recent && recent.session.routine_id !== routineId;
+                const fromOther = recent && recent.session.routine_id !== routine.id;
                 const linkedWithPrev =
                   i > 0 && entry.groupId !== null && entry.groupId === workout.exercises[i - 1].groupId;
                 return (
@@ -419,7 +484,7 @@ export default function ActiveWorkout({
           exercise={activeExercise.exercise}
           loggedSets={activeExercise.sets}
           histories={activeExercise.histories}
-          currentRoutineId={routineId}
+          currentRoutineId={routine.id}
           timerMode={timer.mode}
           retroactive={retroactive}
           onStartSet={() => {
@@ -476,8 +541,8 @@ export default function ActiveWorkout({
 
       {showHistory && (
         <SessionHistorySheet
-          routineId={routineId}
-          routineName={routineName}
+          routineId={routine.id}
+          routineName={routine.name}
           excludeSessionId={sessionId}
           onClose={() => setShowHistory(false)}
         />
@@ -485,7 +550,7 @@ export default function ActiveWorkout({
 
       {summary && (
         <SessionSummary
-          routineName={routineName}
+          routineName={routine.name}
           durationSeconds={summary.durationSeconds}
           summary={summary.data}
           onSaveNotes={saveSummaryNotes}
