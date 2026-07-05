@@ -33,6 +33,7 @@ The app is deliberately **capture-only**: hot-path logging, prior-performance re
 - Per-set: reps, weight, RPE (quick-tap chips), notes, rest time (measured automatically, credited to the set it preceded), set duration, wall-clock timestamps.
 - Supersets: link exercises in the plan; history renders them as one group with A1/B1/A2 labels.
 - Routine templates: planned exercises with target sets/reps/weight/rest per routine; the plan seeds from the template, then last session's leftovers.
+- Routine variants: group routines into a category with A/B/C variants; pick a category and cycle variants before your first set; when a session deviates from its plan, save it as a new variant seeded from today's top sets. Categories and variants are managed in Edit.
 - Rest timer: count-up by default (goes large/bold/red past 3:00); optional countdown mode against per-exercise rest targets (120s default).
 - Prefill from your last comparable set; PR badges computed at log time; cross-routine exercise history paging.
 - Cold-start resume: a PWA kill mid-set restores sets, timers, and pending rest.
@@ -93,6 +94,7 @@ Verification setup for agents: an RLS-isolated test user (credentials in gitigno
 | `HANDOFF.md` | Current state + next steps, replaced each session |
 | `docs/DEEP_REVIEW_AND_V2_PLAN.md` | Layer 1 roadmap (phases 0–3, shipped) |
 | `docs/LAYER2_PLAN.md` | Data platform + AI coach roadmap |
+| `docs/ROUTINE_VARIANTS_PLAN.md` | Routine variants design + decisions (shipped) |
 | `docs/HEALTH_SYNC_PLAN.md` | Daily health ingestion: decision, contract, security, §13 holistic addendum |
 | `docs/health-sync-shortcut-recipe.md` | Tap-by-tap iOS Shortcut build guide |
 | `docs/HEALTH_LAKE_PLAN.md` | Bulk path design: export.zip → local DuckDB |
