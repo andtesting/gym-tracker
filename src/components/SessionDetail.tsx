@@ -8,6 +8,8 @@ import { useSettings } from '../hooks/useSettings';
 import { formatWeight, displayToKg, unitHeader, unitLabel } from '../lib/units';
 import { normalizeRpe } from '../lib/rpe';
 import { buildDisplayGroups } from '../lib/setGroups';
+import { seedEditedSets, editFieldsForSet, planSetInsertion } from '../lib/sessionEdit';
+import type { EditFields } from '../lib/sessionEdit';
 import ExerciseSearch from './ExerciseSearch';
 import ConfirmSheet from './ConfirmSheet';
 import { useToast } from '../hooks/useToast';
@@ -22,7 +24,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [sets, setSets] = useState<SetWithExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [editedSets, setEditedSets] = useState<Record<string, { reps: string; weight_kg: string; rpe: string; notes: string }>>({});
+  const [editedSets, setEditedSets] = useState<Record<string, EditFields>>({});
   const [error, setError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -63,16 +65,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const grouped = buildDisplayGroups(sets);
 
   function handleStartEdit() {
-    const initial: Record<string, { reps: string; weight_kg: string; rpe: string; notes: string }> = {};
-    for (const set of sets) {
-      initial[set.id] = {
-        reps: String(set.reps),
-        weight_kg: formatWeight(set.weight_kg, unit),
-        rpe: set.rpe == null ? '' : String(set.rpe),
-        notes: set.notes ?? '',
-      };
-    }
-    setEditedSets(initial);
+    setEditedSets(seedEditedSets(sets, {}, unit));
     setNotesDraft(session?.notes ?? '');
     setEditing(true);
   }
@@ -114,11 +107,13 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
 
   async function handleSave() {
     setError(null);
+    // ?? '' throughout: a partial/absent entry must never reach a .trim() or
+    // parse — the seeding effect keeps entries complete, this is the backstop.
     for (const set of sets) {
       const edited = editedSets[set.id];
       if (!edited) continue;
-      const newReps = parseInt(edited.reps, 10);
-      const newWeight = parseFloat(edited.weight_kg);
+      const newReps = parseInt(edited.reps ?? '', 10);
+      const newWeight = parseFloat(edited.weight_kg ?? '');
       if (isNaN(newReps) || isNaN(newWeight)) {
         setError('Invalid number in reps or weight.');
         return;
@@ -126,12 +121,14 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     }
     try {
       for (const set of sets) {
-        const edited = editedSets[set.id];
-        if (!edited) continue;
-        const newReps = parseInt(edited.reps, 10);
-        const newWeightKg = displayToKg(parseFloat(edited.weight_kg), unit);
-        const newRpe = normalizeRpe(edited.rpe);
-        const newNotes = edited.notes.trim() === '' ? null : edited.notes.trim();
+        // Fall back to the set's own values so an unseeded set (added mid-edit)
+        // is handled, never a partial object.
+        const edited = editedSets[set.id] ?? editFieldsForSet(set, unit);
+        const newReps = parseInt(edited.reps ?? '', 10);
+        const newWeightKg = displayToKg(parseFloat(edited.weight_kg ?? ''), unit);
+        const newRpe = normalizeRpe(edited.rpe ?? '');
+        const trimmedSetNotes = (edited.notes ?? '').trim();
+        const newNotes = trimmedSetNotes === '' ? null : trimmedSetNotes;
         if (newReps !== set.reps || newWeightKg !== set.weight_kg || newRpe !== (set.rpe ?? null) || newNotes !== (set.notes ?? null)) {
           await updateSet(set.id, { reps: newReps, weight_kg: newWeightKg, rpe: newRpe, notes: newNotes });
         }
@@ -217,15 +214,49 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     }
   }
 
+  // Elegant path for adding another set to an exercise already in the session:
+  // prefill reps/weight from that exercise's last set, insert adjacent (not at
+  // the far end) so grouping stays intact, no search step.
+  async function handleAddSetToExercise(exerciseId: string, lastSet: SetWithExercise) {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { insertOrder, shifts } = planSetInsertion(sets, exerciseId);
+      await Promise.all(shifts.map(s => updateSet(s.id, { set_order: s.set_order })));
+      await createSet({
+        session_id: sessionId,
+        exercise_id: exerciseId,
+        set_order: insertOrder,
+        reps: lastSet.reps,
+        weight_kg: lastSet.weight_kg,
+        set_duration_seconds: null,
+        started_at: null,
+        completed_at: null,
+        // RPE deliberately not carried forward — effort changes set to set.
+        created_at: sets.length > 0 ? sets[0].created_at : undefined,
+      });
+      const refreshed = await fetchSessionSets(sessionId);
+      setSets(refreshed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add set.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function handleSelectExercise(exercise: Exercise) {
     setPendingExercise(exercise);
     setAddingExercise(false);
   }
 
-  function updateEditField(setId: string, field: 'reps' | 'weight_kg' | 'rpe' | 'notes', value: string) {
+  function updateEditField(set: SetWithExercise, field: 'reps' | 'weight_kg' | 'rpe' | 'notes', value: string) {
+    // Base off the set's own values when no entry exists yet, so the first
+    // keystroke on a mid-edit-added set produces a COMPLETE object, never a
+    // partial one missing notes/rpe (the source of the save crash).
     setEditedSets(prev => ({
       ...prev,
-      [setId]: { ...prev[setId], [field]: value },
+      [set.id]: { ...(prev[set.id] ?? editFieldsForSet(set, unit)), [field]: value },
     }));
   }
 
@@ -291,7 +322,9 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
             <span>Set</span><span>Reps</span><span>{unitHeader(unit)}</span><span>RPE</span>
             {editing ? <span /> : <span>Rest</span>}
           </div>
-          {group.sets.map((set, j) => (
+          {group.sets.map((set, j) => {
+            const fields = editedSets[set.id] ?? editFieldsForSet(set, unit);
+            return (
             <div key={set.id}>
             <div className="set-row" style={{ gridTemplateColumns: editing ? '50px 1fr 1fr 52px 40px' : '50px 1fr 1fr 44px 1fr' }}>
               <span>{group.labels ? group.labels[j] : j + 1}</span>
@@ -300,23 +333,23 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={editedSets[set.id]?.reps ?? ''}
-                    onChange={e => updateEditField(set.id, 'reps', e.target.value)}
+                    value={fields.reps}
+                    onChange={e => updateEditField(set, 'reps', e.target.value)}
                     style={{ minHeight: 32, padding: '4px 6px', fontSize: '0.875rem' }}
                   />
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={editedSets[set.id]?.weight_kg ?? ''}
-                    onChange={e => updateEditField(set.id, 'weight_kg', e.target.value)}
+                    value={fields.weight_kg}
+                    onChange={e => updateEditField(set, 'weight_kg', e.target.value)}
                     style={{ minHeight: 32, padding: '4px 6px', fontSize: '0.875rem' }}
                   />
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={editedSets[set.id]?.rpe ?? ''}
+                    value={fields.rpe}
                     placeholder="–"
-                    onChange={e => updateEditField(set.id, 'rpe', e.target.value)}
+                    onChange={e => updateEditField(set, 'rpe', e.target.value)}
                     style={{ minHeight: 32, padding: '4px 6px', fontSize: '0.875rem' }}
                   />
                   <button
@@ -344,16 +377,30 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
             {editing ? (
               <input
                 type="text"
-                value={editedSets[set.id]?.notes ?? ''}
+                value={fields.notes}
                 placeholder="Set note (optional)"
-                onChange={e => updateEditField(set.id, 'notes', e.target.value)}
+                onChange={e => updateEditField(set, 'notes', e.target.value)}
                 style={{ width: '100%', minHeight: 32, padding: '4px 6px', fontSize: '0.875rem', marginBottom: 4 }}
               />
             ) : (
               set.notes && <div className="set-note" style={{ paddingLeft: 50 }}>{set.notes}</div>
             )}
             </div>
-          ))}
+            );
+          })}
+          {/* Single-exercise groups get a quick add; supersets keep to the
+              Add Exercise flow (which exercise to extend is ambiguous). */}
+          {editing && group.labels === null && group.sets[0]?.exercise_id && (
+            <button
+              className="btn-secondary btn-small mt-8"
+              style={{ width: '100%' }}
+              disabled={submitting}
+              onClick={() => handleAddSetToExercise(group.sets[0].exercise_id!, group.sets[group.sets.length - 1])}
+            >
+              <Plus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              Add set to {group.name}
+            </button>
+          )}
         </div>
       ))}
 
