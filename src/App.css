@@ -212,8 +212,10 @@ input:focus, select:focus, textarea:focus {
 
 .two-column {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  /* Right column (Current sets, with per-row edit control) is wider than the
+     left (Last Time reference) so the Reps/Kg/RPE/Rest headers don't collide. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 12px;
 }
 
 .two-column-label {
@@ -470,23 +472,6 @@ input:focus, select:focus, textarea:focus {
   color: var(--color-muted);
   padding: 0 0 6px 18px;
   overflow-wrap: anywhere;
-}
-.qc-rpe-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-top: 8px;
-}
-.qc-rpe-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--color-muted);
-  min-width: 26px;
-}
-.qc-chip-rpe {
-  font-size: 0.8125rem;
-  padding: 4px 0;
 }
 .qc-chip-active {
   border-color: var(--color-accent);

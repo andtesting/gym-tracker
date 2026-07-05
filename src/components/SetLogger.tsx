@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import type { Exercise, WorkoutSet, ExerciseHistoryEntry } from '../types';
 import { formatRest } from '../lib/timer';
 import { isWeightPr } from '../lib/summary';
@@ -65,10 +65,9 @@ export default function SetLogger({
   const [initialPrefill] = useState(() => prefillValues(loggedSets, histories, unit));
   const [reps, setReps] = useState(initialPrefill?.reps ?? '');
   const [weight, setWeight] = useState(initialPrefill?.weight ?? '');
-  // RPE is deliberately NOT prefilled from the previous set: effort is the one
-  // number that genuinely changes set to set, and a stale carried-over rating
-  // is worse than none. One tap to rate, or log unrated.
-  const [rpe, setRpe] = useState<number | null>(null);
+  // RPE defaults to 7 (a prominent third box, so it's rarely forgotten) and
+  // resets to 7 after each log. Adjust up when the set was harder.
+  const [rpe, setRpe] = useState('7');
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editReps, setEditReps] = useState('');
   const [editWeight, setEditWeight] = useState('');
@@ -107,13 +106,12 @@ export default function SetLogger({
     setSubmitting(true);
     setError(null);
     try {
-      await onLogSet({ reps: r, weight_kg: displayToKg(w, unit), rpe });
-      // Keep the just-logged values as the next set's prefill (repeat sets are
-      // the majority case), normalised through the parsers. RPE resets: see
-      // the state declaration.
+      await onLogSet({ reps: r, weight_kg: displayToKg(w, unit), rpe: normalizeRpe(rpe) });
+      // Keep the just-logged reps/weight as the next set's prefill (repeat
+      // sets are the majority case); RPE resets to its 7 default.
       setReps(String(r));
       setWeight(String(w));
-      setRpe(null);
+      setRpe('7');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to log set');
     } finally {
@@ -206,8 +204,13 @@ export default function SetLogger({
             <p className="text-small text-muted">No sets yet</p>
           ) : (
             <>
-              <div className="set-row set-row-header" style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}>
-                <span>#</span><span>Reps</span><span>{unitHeader(unit)}</span><span>RPE</span><span>Rest</span><span />
+              <div className="set-row set-row-header" style={{ gridTemplateColumns: '12px minmax(0,1fr) minmax(0,1fr) 24px 32px 20px', gap: 4, fontSize: '0.625rem' }}>
+                <span>#</span>
+                <span style={{ textAlign: 'right' }}>Reps</span>
+                <span style={{ textAlign: 'right' }}>{unitHeader(unit)}</span>
+                <span style={{ textAlign: 'right' }}>RPE</span>
+                <span style={{ textAlign: 'right' }}>Rest</span>
+                <span />
               </div>
               {loggedSets.map((set, i) => {
                 const editing = editingSetId === set.id;
@@ -230,7 +233,7 @@ export default function SetLogger({
                     >
                       <div
                         className="set-row"
-                        style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}
+                        style={{ gridTemplateColumns: '12px minmax(0,1fr) minmax(0,1fr) 24px 32px 20px', gap: 4 }}
                       >
                         <span>{i + 1}</span>
                         <input
@@ -288,30 +291,33 @@ export default function SetLogger({
                   <div key={set.id}>
                     <div
                       className="set-row"
-                      style={{ gridTemplateColumns: '18px minmax(0,1fr) minmax(0,1fr) 26px 34px 20px', gap: 4 }}
+                      style={{ gridTemplateColumns: '12px minmax(0,1fr) minmax(0,1fr) 24px 32px 20px', gap: 4 }}
                     >
                       <span>{i + 1}</span>
-                      <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
+                      <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, textAlign: 'right' }}>
                         {set.reps}
                       </span>
-                      <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap' }}>
+                      <span onClick={() => startEdit(set)} style={{ cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 2, whiteSpace: 'nowrap', textAlign: 'right' }}>
                         {formatWeight(set.weight_kg, unit)}
                         {isPr && <span className="pr-badge">PR</span>}
                       </span>
                       <span
                         className="text-muted"
                         onClick={() => startEdit(set)}
-                        style={{ fontSize: '0.75rem', cursor: 'pointer' }}
+                        style={{ fontSize: '0.75rem', cursor: 'pointer', textAlign: 'right' }}
                       >
                         {set.rpe ?? ''}
                       </span>
-                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>{rest}</span>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', textAlign: 'right' }}>{rest}</span>
+                      {/* Edit opens the row; delete lives inside the editor
+                          (so a mistype is a fix, not a delete-and-re-add that
+                          would reset the rest timer). */}
                       <button
-                        onClick={() => handleDelete(set)}
-                        style={{ color: 'var(--color-danger)', background: 'none', minHeight: 0, padding: 2, lineHeight: 0 }}
-                        aria-label="Delete set"
+                        onClick={() => startEdit(set)}
+                        style={{ color: 'var(--color-muted)', background: 'none', minHeight: 0, padding: 2, lineHeight: 0 }}
+                        aria-label="Edit set"
                       >
-                        <Trash2 size={12} />
+                        <Pencil size={12} />
                       </button>
                     </div>
                     {set.notes && (

@@ -3,27 +3,25 @@ import { Delete } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import { unitLabel, round2 } from '../lib/units';
 
+type Field = 'reps' | 'weight' | 'rpe';
+
 interface Props {
   reps: string;
   weight: string;
-  rpe: number | null;
+  rpe: string;
   onRepsChange: (value: string) => void;
   onWeightChange: (value: string) => void;
-  onRpeChange: (value: number | null) => void;
+  onRpeChange: (value: string) => void;
 }
 
-// Quick-tap range: half steps from 7 (below that, rating adds no coaching
-// signal for strength work). Tapping the selected chip clears it.
-const RPE_VALUES = [7, 7.5, 8, 8.5, 9, 9.5, 10];
-
-// Reps/weight entry without the OS keyboard (AND-47): large tap-to-edit value
-// buttons, quick-adjust chips, and an in-app pad for full entry.
-// Non-focusable controls mean iOS never raises its keyboard and the viewport
-// never jumps mid-workout. Chips apply to whichever field is selected
-// (AND-50) and step by the user-configured amounts.
+// Reps/weight/RPE entry without the OS keyboard (AND-47): three large
+// tap-to-edit value boxes, quick-adjust chips, and an in-app pad for full
+// entry. Non-focusable controls mean iOS never raises its keyboard and the
+// viewport never jumps mid-workout. Chips apply to whichever box is selected
+// and step by the user-configured amounts (RPE clamps to 1-10).
 export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeightChange, onRpeChange }: Props) {
   const { settings } = useSettings();
-  const [activeField, setActiveField] = useState<'reps' | 'weight' | null>(null);
+  const [activeField, setActiveField] = useState<Field | null>(null);
   // Calculator semantics: the first digit after opening a field replaces the
   // prefilled value instead of appending to it.
   const [freshEntry, setFreshEntry] = useState(false);
@@ -35,10 +33,10 @@ export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeight
     if (activeField) padRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [activeField]);
 
-  const value = activeField === 'reps' ? reps : weight;
-  const setValue = activeField === 'reps' ? onRepsChange : onWeightChange;
+  const value = activeField === 'reps' ? reps : activeField === 'weight' ? weight : rpe;
+  const setValue = activeField === 'reps' ? onRepsChange : activeField === 'weight' ? onWeightChange : onRpeChange;
 
-  function toggleField(field: 'reps' | 'weight') {
+  function toggleField(field: Field) {
     if (activeField === field) {
       setActiveField(null);
     } else {
@@ -59,7 +57,7 @@ export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeight
       setValue(base === '' ? '0.' : `${base}.`);
       return;
     }
-    const max = activeField === 'reps' ? 3 : 6;
+    const max = activeField === 'reps' ? 3 : activeField === 'rpe' ? 4 : 6;
     if (base.length >= max) return;
     setValue(base + digit);
   }
@@ -70,8 +68,9 @@ export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeight
     setValue(value.slice(0, -1));
   }
 
-  // Chips act on the selected field: reps round to a whole number and floor
-  // at 1; weight keeps decimals and floors at 0.
+  // Chips act on the selected field: reps round to a whole number and floor at
+  // 1; weight keeps decimals and floors at 0; RPE steps on the 0.5 grid and
+  // clamps to 1-10 (the default step of 1 means +1 -> 8, +2.5 -> 9.5).
   function nudge(delta: number) {
     if (!activeField) return;
     setFreshEntry(false);
@@ -79,6 +78,11 @@ export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeight
       const current = parseInt(reps, 10);
       const next = Math.max(1, Math.round((isNaN(current) ? 0 : current) + delta));
       onRepsChange(String(next));
+    } else if (activeField === 'rpe') {
+      const current = parseFloat(rpe);
+      const raw = (isNaN(current) ? 7 : current) + delta;
+      const next = Math.min(10, Math.max(1, Math.round(raw * 2) / 2));
+      onRpeChange(String(next));
     } else {
       const current = parseFloat(weight);
       const next = Math.max(0, (isNaN(current) ? 0 : current) + delta);
@@ -113,6 +117,14 @@ export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeight
           <span className="qc-number">{weight === '' ? '·' : weight}</span>
           <span className="qc-unit">{unitLabel(settings.unit)}</span>
         </button>
+        <button
+          className={`qc-value ${activeField === 'rpe' ? 'qc-value-active' : ''}`}
+          onClick={() => toggleField('rpe')}
+          aria-label="Edit RPE"
+        >
+          <span className="qc-number">{rpe === '' ? '·' : rpe}</span>
+          <span className="qc-unit">RPE</span>
+        </button>
       </div>
 
       <div className="qc-chips">
@@ -128,26 +140,6 @@ export default function QuickCapture({ reps, weight, rpe, onRepsChange, onWeight
           </button>
         ))}
       </div>
-      <div className="qc-rpe-row">
-        <span className="qc-rpe-label">RPE</span>
-        {RPE_VALUES.map(v => (
-          <button
-            key={v}
-            className={`qc-chip qc-chip-rpe ${rpe === v ? 'qc-chip-active' : ''}`}
-            onClick={() => onRpeChange(rpe === v ? null : v)}
-            aria-label={`RPE ${v}`}
-            aria-pressed={rpe === v}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
-
-      {!activeField && (
-        <p className="text-small text-muted mt-8 text-center">
-          Tap reps or {unitLabel(settings.unit)} to adjust.
-        </p>
-      )}
 
       {activeField && (
         <div className="numpad" ref={padRef}>
