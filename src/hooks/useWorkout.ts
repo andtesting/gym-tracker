@@ -4,6 +4,7 @@ import { fetchRoutineExercises } from '../api/routineExercises';
 import { pushOutbox } from '../lib/outbox';
 import { cachedFetch } from '../lib/cache';
 import { buildPlan } from '../lib/plan';
+import { normalizeGroupAdjacency } from '../lib/setGroups';
 import { loadActiveWorkout, updateActiveWorkout } from '../lib/sessionPersistence';
 import { useToast } from './useToast';
 import type { Exercise, RoutineExercise, WorkoutSet, SetWithExercise, ExerciseHistoryEntry } from '../types';
@@ -57,6 +58,7 @@ function flattenSets(exercises: ActiveExercise[]): SetWithExercise[] {
     .flatMap(e => e.sets.map(s => ({ ...s, exercises: e.exercise })))
     .sort((a, b) => a.set_order - b.set_order);
 }
+
 
 export function useWorkout(sessionId: string, routineId: string, opts: UseWorkoutOptions = {}) {
   const retroactive = opts.retroactive ?? false;
@@ -210,17 +212,24 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     if (target < 0 || target >= exercises.length) return;
     const swapped = [...exercises];
     [swapped[index], swapped[target]] = [swapped[target], swapped[index]];
-    // The link model assumes group members are contiguous (the Link button
-    // and display only ever look at neighbours). A member separated by this
-    // reorder is unlinked explicitly rather than left silently stale.
-    const normalized = swapped.map((e, i) => {
-      if (e.groupId === null) return e;
-      const adjacent =
-        (i > 0 && swapped[i - 1].groupId === e.groupId) ||
-        (i < swapped.length - 1 && swapped[i + 1].groupId === e.groupId);
-      return adjacent ? e : { ...e, groupId: null };
-    });
-    const next = alignSetsToGroups(normalized);
+    const next = alignSetsToGroups(normalizeGroupAdjacency(swapped));
+    setExercises(next);
+    persistSets(next);
+  }, [exercises, alignSetsToGroups, persistSets]);
+
+  // "Skip for today": send an exercise to the bottom of the plan without
+  // deleting it. Same group-adjacency unlink as reorderExercise. NOTE: plan
+  // ORDER is not persisted (flattenSets stores sets by set_order; buildPlan
+  // re-derives order on resume from set_order + template sort_order), so a
+  // kill-and-resume mid-workout returns a skipped (no-sets) exercise to its
+  // template slot. Shared pre-existing limitation with reorderExercise;
+  // persisting plan order is a future improvement.
+  const moveExerciseToEnd = useCallback((index: number) => {
+    if (index < 0 || index >= exercises.length - 1) return;
+    const reordered = [...exercises];
+    const [moved] = reordered.splice(index, 1);
+    reordered.push(moved);
+    const next = alignSetsToGroups(normalizeGroupAdjacency(reordered));
     setExercises(next);
     persistSets(next);
   }, [exercises, alignSetsToGroups, persistSets]);
@@ -403,6 +412,7 @@ export function useWorkout(sessionId: string, routineId: string, opts: UseWorkou
     addExercise,
     removeExercise,
     reorderExercise,
+    moveExerciseToEnd,
     toggleSuperset,
     logSet,
     editSet,

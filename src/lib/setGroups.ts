@@ -1,5 +1,20 @@
 import type { SetWithExercise } from '../types';
 
+// The superset link model assumes members are contiguous in the plan (the Link
+// button and display only ever look at neighbours). Any reorder/move that pulls
+// a member away from its group unlinks it (groupId -> null) rather than leaving
+// it silently stale; a 2-member group whose members become separated dissolves
+// entirely (both non-adjacent). Generic over anything carrying a groupId.
+export function normalizeGroupAdjacency<T extends { groupId: string | null }>(list: T[]): T[] {
+  return list.map((e, i) => {
+    if (e.groupId === null) return e;
+    const adjacent =
+      (i > 0 && list[i - 1].groupId === e.groupId) ||
+      (i < list.length - 1 && list[i + 1].groupId === e.groupId);
+    return adjacent ? e : { ...e, groupId: null };
+  });
+}
+
 export interface DisplayGroup {
   name: string;
   sets: SetWithExercise[];

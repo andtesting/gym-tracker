@@ -1,6 +1,38 @@
 import { describe, it, expect } from 'vitest';
-import { buildDisplayGroups } from '../../src/lib/setGroups';
+import { buildDisplayGroups, normalizeGroupAdjacency } from '../../src/lib/setGroups';
 import type { Exercise, SetWithExercise } from '../../src/types';
+
+describe('normalizeGroupAdjacency', () => {
+  const g = (id: string, groupId: string | null) => ({ id, groupId });
+
+  it('leaves contiguous group members linked', () => {
+    const list = [g('a', 'x'), g('b', 'x'), g('c', null)];
+    expect(normalizeGroupAdjacency(list)).toEqual(list);
+  });
+
+  it('keeps a 3-member group linked after an intra-group reorder', () => {
+    // [A,B,C] all x, C moved before B -> [A,C,B]: still all contiguous.
+    const list = [g('a', 'x'), g('c', 'x'), g('b', 'x')];
+    expect(normalizeGroupAdjacency(list).map(e => e.groupId)).toEqual(['x', 'x', 'x']);
+  });
+
+  it('dissolves a 2-member group when its members become separated', () => {
+    // A(x) ... B(x) with a non-member between -> both non-adjacent -> both null.
+    const list = [g('a', 'x'), g('mid', null), g('b', 'x')];
+    expect(normalizeGroupAdjacency(list).map(e => e.groupId)).toEqual([null, null, null]);
+  });
+
+  it('nulls a lone member left after a move to the end', () => {
+    // group of 2 (a,b), a moved to end past another exercise: [b, x, a]
+    const list = [g('b', 'x'), g('x1', null), g('a', 'x')];
+    expect(normalizeGroupAdjacency(list).map(e => e.groupId)).toEqual([null, null, null]);
+  });
+
+  it('keeps distinct adjacent groups separate', () => {
+    const list = [g('a', 'x'), g('b', 'x'), g('c', 'y'), g('d', 'y')];
+    expect(normalizeGroupAdjacency(list).map(e => e.groupId)).toEqual(['x', 'x', 'y', 'y']);
+  });
+});
 
 function makeExercise(id: string, name: string): Exercise {
   return {
