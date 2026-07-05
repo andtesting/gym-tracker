@@ -190,6 +190,16 @@ export default function EditModeScreen({ onBack }: Props) {
   }
 
   async function handleCategoryRename(category: RoutineCategory, newName: string) {
+    // Renaming onto an existing category would merge them on the next
+    // groupIntoCategories (duplicate labels/orders, and a reorder that then
+    // silently no-ops). Block it; the user can move variants deliberately.
+    const others = new Set(
+      groupIntoCategories(routines).map(c => c.name).filter(n => n !== category.name),
+    );
+    if (others.has(newName)) {
+      toast('A category with that name already exists.');
+      return;
+    }
     try {
       await Promise.all(category.variants.map(v => {
         const name = renamedForCategory(v.name, category.name, newName);
@@ -236,20 +246,23 @@ export default function EditModeScreen({ onBack }: Props) {
   async function handleVariantReorder(category: RoutineCategory, index: number, direction: 'up' | 'down') {
     const target = direction === 'up' ? index - 1 : index + 1;
     if (target < 0 || target >= category.variants.length) return;
-    const a = category.variants[index];
-    const b = category.variants[target];
-    const ao = a.variant_order ?? index;
-    const bo = b.variant_order ?? target;
+    // Reindex from array position rather than swapping the two stored orders:
+    // a swap of equal values silently reverts, and variants can carry
+    // duplicate variant_order (Layer 2 writers, a merge) — same reasoning as
+    // handlePlanReorder.
+    const next = [...category.variants];
+    [next[index], next[target]] = [next[target], next[index]];
+    const reindexed = next.map((v, i) => ({ ...v, variant_order: i }));
     try {
-      await Promise.all([
-        updateRoutine(a.id, { variant_order: bo }),
-        updateRoutine(b.id, { variant_order: ao }),
-      ]);
-      setRoutines(prev => prev.map(r => {
-        if (r.id === a.id) return { ...r, variant_order: bo };
-        if (r.id === b.id) return { ...r, variant_order: ao };
-        return r;
-      }));
+      await Promise.all(
+        reindexed
+          .filter((v, i) => v.variant_order !== next[i].variant_order)
+          .map(v => updateRoutine(v.id, { variant_order: v.variant_order })),
+      );
+      const orderById = new Map(reindexed.map(v => [v.id, v.variant_order]));
+      setRoutines(prev => prev.map(r =>
+        orderById.has(r.id) ? { ...r, variant_order: orderById.get(r.id)! } : r,
+      ));
     } catch {
       toast('Failed to reorder variants.');
     }
