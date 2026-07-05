@@ -55,7 +55,9 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
     setCreating(true);
     try {
       const routine = await createRoutine(trimmed, routines.length);
-      setRoutines(prev => [...prev, routine].sort((a, b) => a.name.localeCompare(b.name)));
+      // Display order comes entirely from groupIntoCategories (which sorts),
+      // so no need to keep this array sorted.
+      setRoutines(prev => [...prev, routine]);
       setNewName('');
       setShowAdd(false);
     } catch {
