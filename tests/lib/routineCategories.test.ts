@@ -24,6 +24,10 @@ describe('groupIntoCategories', () => {
     expect(cats[1].variants.map(v => v.name)).toEqual(['Chest A', 'Chest B']);
   });
 
+  it('returns an empty array for no routines', () => {
+    expect(groupIntoCategories([])).toEqual([]);
+  });
+
   it('treats a legacy routine with no category as its own single-variant category', () => {
     const cats = groupIntoCategories([r('Full Body')]);
     expect(cats).toHaveLength(1);

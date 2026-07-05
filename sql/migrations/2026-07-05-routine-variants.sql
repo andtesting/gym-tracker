@@ -2,6 +2,11 @@
 -- 2026-07-05. Additive columns on routines + a one-off backfill of existing
 -- routines by name prefix (mapping approved). Each variant stays a routine
 -- with its own template and session references; nothing downstream changes.
+--
+-- ONE-OFF, already applied. Do NOT re-run against evolved data: the backfill
+-- guards on null, but the variant_order window recomputes over ALL rows, so a
+-- re-run after new (non-null-order) inserts could renumber a straggler into a
+-- collision. Historical record only.
 alter table routines add column if not exists category text;
 alter table routines add column if not exists variant_label text;
 alter table routines add column if not exists variant_order integer;

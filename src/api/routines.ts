@@ -11,9 +11,11 @@ export async function fetchRoutines(): Promise<Routine[]> {
   return data;
 }
 
-// New routines default to their own single-variant category (category = name);
-// variant creation passes explicit category/label/order (and reuses the
-// category's colour). See docs/ROUTINE_VARIANTS_PLAN.md.
+// New routines default to their own single-variant category (category = name),
+// with a NULL variant_order — never a fixed 0, so a standalone can't collide
+// on order with an existing category's variant A. Variant creation passes
+// explicit category/label/order (and reuses the category's colour). See
+// docs/ROUTINE_VARIANTS_PLAN.md.
 export async function createRoutine(
   name: string,
   existingCount: number,
@@ -26,7 +28,7 @@ export async function createRoutine(
       color: meta?.color ?? autoAssignColour(existingCount),
       category: meta?.category ?? name,
       variant_label: meta?.variant_label ?? null,
-      variant_order: meta?.variant_order ?? 0,
+      variant_order: meta?.variant_order ?? null,
     })
     .select()
     .single();
