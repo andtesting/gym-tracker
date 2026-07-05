@@ -46,7 +46,8 @@ docs/           Per-issue requirements docs (e.g. AND-11-session-resume-requirem
 
 ```
 muscle_groups (id, user_id, name, sort_order)
-routines      (id, user_id, name, color)                  # "back A", "chest A", etc.
+routines      (id, user_id, name, color,                  # variants of a category share `category`;
+               category, variant_label, variant_order)    # variant_label A/B/C, variant_order cycles
 exercises     (id, user_id, name, muscle_group_id)        # built organically as user creates them
 sessions      (id, user_id, routine_id, started_at, finished_at, notes)
 sets          (id, user_id, session_id, exercise_id, set_order, set_type, reps, weight_kg,
@@ -60,6 +61,7 @@ sets          (id, user_id, session_id, exercise_id, set_order, set_type, reps, 
 - Any date bucketing of `started_at` (heatmap, day-detail) must use `lib/date.ts` `localDateKey()`, not `started_at.split('T')[0]` — the latter is the UTC day and drifts from the locally-rendered grid (AND-38).
 - Retroactive set adds backdate `created_at` to the session's first set's `created_at` so grouping stays correct (see `SessionDetail.handleAddRetroactiveSet`).
 - **Phase 3 data-contract columns are live and fully adopted** (applied 2026-07-03, UI shipped same day): `sets.rpe/notes/group_id/deleted_at`, `routine_exercises`, and the exercise metadata columns (equipment/bodyweight/secondary muscles, edited via the More panel in Edit mode) all have UI. **Deletion is SOFT everywhere, sets AND sessions** (`sessions.deleted_at` added 2026-07-04): sets stamp `deleted_at` via full-row outbox upsert in-workout (Undo clears it) or `api/sets.deleteSet`; `deleteSession` stamps the session and leaves its sets untouched. Every session- or set-reading query carries `.is('deleted_at', null)` (set readers joining sessions also filter `sessions.deleted_at`) EXCEPT `fetchExportSets` — export keeps all rows and exposes both `deleted_at` and `session_deleted_at`. Any new reader must add the filters. `validatePersistedSession` treats a deleted session as finished so resume can't resurrect it.
+- **Routine variants are live** (2026-07-06): a **category** is the set of routines sharing `routines.category`; each variant stays its own routine with its own `routine_exercises` template, and `sessions.routine_id` still points at the specific variant — so the feature is purely additive, nothing downstream changed. `variant_label` (A/B/C) + `variant_order` drive display and cycle order; all three columns null on a legacy/standalone routine. `lib/routineCategories.ts` (grouping, next label/order) and `lib/variantFromSession.ts` (deviation + top-set template seed) are the pure helpers. See `docs/ROUTINE_VARIANTS_PLAN.md`.
 - **Layer 2 `health` schema is live** (2026-07-03): `health.workouts` / `health.samples` / `health.ingest_log` / `health.config`, written only by the `ingest-health` edge function through the service-role-locked RPC `public.health_ingest()` (token + owner id live in `health.config`, not function secrets — no CLI auth existed to set them). The PWA never reads or writes `health.*`. See `sql/health_schema.sql`, `docs/HEALTH_SYNC_PLAN.md`, `docs/health-sync-shortcut-recipe.md`.
 
 ## App architecture
@@ -122,8 +124,7 @@ Two-layer model (settled 2026-07-03): this app is the capture layer only (hot pa
 
 ## Things that don't yet exist
 
-- No supersets/circuits (AND-10).
-- No per-exercise rest defaults / countdown timer (AND-6).
-- No notes or RPE (AND-9).
+- Plan **order** isn't persisted: `buildPlan` re-derives order from set_order + template sort_order on resume, so a PWA kill mid-workout reverts a reorder or an eye/skip. Candidate improvement.
+- The phone-side health Shortcut (the server ingest is live; see HANDOFF).
 
-When adding features, check the Linear backlog first — there's a decent chance there's already an issue with prior thinking attached.
+Supersets (AND-10), per-exercise rest targets + countdown (AND-6), notes + RPE (AND-9), and routine variants all shipped. When adding features, check the Linear backlog first — there's a decent chance there's already an issue with prior thinking attached.

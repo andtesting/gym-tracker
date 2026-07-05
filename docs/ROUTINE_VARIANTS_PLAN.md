@@ -1,5 +1,7 @@
 # Routine Variants — design
 
+Status: **SHIPPED 2026-07-06** — data layer #51, UI #53 (PickRoutine categories), #54 (switcher), #55 (save-as-variant on finish), #56 (Edit management). This file is the design record; the build sequence in §7 is complete.
+
 Date: 2026-07-05. Andy's ask: instead of flat routines ("Legs A", "Legs B" as separate things), a **Legs category** holding **A/B/C variants**. Motivation: his last session was "Legs A" by intention, but machines were busy so he swapped exercises — he wants to capture that as a variant, cycle variants before starting, and be offered "save as a new variant" on finish.
 
 Confirmed answers (2026-07-05): reusable variant templates; auto-group existing routines by name prefix; create-variant-on-finish saves today's exercises as a new variant.
