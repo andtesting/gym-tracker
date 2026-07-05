@@ -3,6 +3,7 @@ import { fetchRoutines, createRoutine } from '../api/routines';
 import { saveActiveWorkout } from '../lib/sessionPersistence';
 import { pushOutbox } from '../lib/outbox';
 import { cachedFetch } from '../lib/cache';
+import { groupIntoCategories } from '../lib/routineCategories';
 import type { Routine, Screen } from '../types';
 import { useToast } from '../hooks/useToast';
 
@@ -74,16 +75,33 @@ export default function PickRoutineScreen({ onNavigate }: Props) {
       {loading && <p className="text-muted text-center">Loading...</p>}
 
       <div className="stack">
-        {routines.map(routine => (
-          <button
-            key={routine.id}
-            className="btn-secondary"
-            onClick={() => handleSelectRoutine(routine)}
-            disabled={creating}
-          >
-            {routine.name}
-          </button>
-        ))}
+        {groupIntoCategories(routines).map(category => {
+          // Tapping a category starts its default variant — variant A, the
+          // lowest variant_order (ROUTINE_VARIANTS_PLAN §6 Q1). Switching to
+          // another variant happens in the plan view before the first set.
+          const variantA = category.variants[0];
+          const multi = category.variants.length > 1;
+          return (
+            <button
+              key={category.name}
+              className="btn-secondary"
+              onClick={() => handleSelectRoutine(variantA)}
+              disabled={creating}
+              style={multi ? { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 } : undefined}
+            >
+              {multi ? (
+                <>
+                  <span>{category.name}</span>
+                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    {category.variants.map(v => v.variant_label ?? '·').join(' / ')}
+                  </span>
+                </>
+              ) : (
+                variantA.name
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {!showAdd ? (
