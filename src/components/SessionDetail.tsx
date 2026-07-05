@@ -108,7 +108,8 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   async function handleSave() {
     setError(null);
     // ?? '' throughout: a partial/absent entry must never reach a .trim() or
-    // parse — the seeding effect keeps entries complete, this is the backstop.
+    // parse. The render fallback + updateEditField seeding keep entries
+    // complete; this is the backstop.
     for (const set of sets) {
       const edited = editedSets[set.id];
       if (!edited) continue;
@@ -222,6 +223,9 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     setSubmitting(true);
     setError(null);
     try {
+      // Shift-then-create is not atomic: a mid-batch failure can leave a
+      // set_order gap. Harmless — grouping re-derives from relative order on
+      // reopen, and this is past-session editing, not the hot path.
       const { insertOrder, shifts } = planSetInsertion(sets, exerciseId);
       await Promise.all(shifts.map(s => updateSet(s.id, { set_order: s.set_order })));
       await createSet({
@@ -388,9 +392,11 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
             </div>
             );
           })}
-          {/* Single-exercise groups get a quick add; supersets keep to the
-              Add Exercise flow (which exercise to extend is ambiguous). */}
-          {editing && group.labels === null && group.sets[0]?.exercise_id && (
+          {/* Plain single-exercise groups get a quick add. Supersets keep to
+              the Add Exercise flow — including a superset whose run holds one
+              exercise (labels null but group_id set): a null-group_id add
+              would split it into a detached group. */}
+          {editing && group.labels === null && !group.sets[0]?.group_id && group.sets[0]?.exercise_id && (
             <button
               className="btn-secondary btn-small mt-8"
               style={{ width: '100%' }}
