@@ -25,6 +25,22 @@ export async function addRoutineExercise(
   return data as unknown as RoutineExerciseWithExercise;
 }
 
+// Bulk insert for seeding a freshly minted variant's template in one round
+// trip (see lib/variantFromSession). Targets not supplied stay null.
+export async function createRoutineExercises(
+  rows: Array<{
+    routine_id: string;
+    exercise_id: string;
+    sort_order: number;
+    target_reps?: number | null;
+    target_weight_kg?: number | null;
+  }>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('routine_exercises').insert(rows);
+  if (error) throw error;
+}
+
 export async function updateRoutineExercise(
   id: string,
   updates: {
