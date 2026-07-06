@@ -19,7 +19,7 @@ import {
 import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
 import { summariseWorkout } from '../lib/summary';
-import { DEFAULT_REST_TARGET_SECONDS } from '../lib/timer';
+import { DEFAULT_REST_TARGET_SECONDS, latestCompletedMs } from '../lib/timer';
 import type { WorkoutSummary } from '../lib/summary';
 import { pushOutbox } from '../lib/outbox';
 import { useSettings } from '../hooks/useSettings';
@@ -156,6 +156,14 @@ export default function ActiveWorkout({
   // captures the gap between the previous exercise's last set and the new
   // exercise's first set too (AND-37).
   const pendingRestRef = useRef<number | null>(restoredTimer?.pendingRestSeconds ?? null);
+  // Live mirror of the timer mode for the Undo-set closure, which is frozen at
+  // delete time (the undo toast can fire ~6s later). Reading the ref lets undo
+  // re-anchor rest without clobbering an in-progress set the user may have
+  // started during the undo window.
+  const timerModeRef = useRef(timer.mode);
+  useEffect(() => {
+    timerModeRef.current = timer.mode;
+  }, [timer.mode]);
 
   function persistTimer(mode: 'idle' | 'set' | 'rest', startedAtMs: number | null) {
     if (retroactive) return;
@@ -588,8 +596,54 @@ export default function ActiveWorkout({
             }, restSeconds);
           }}
           onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
-          onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}
-          onRestoreSet={(set) => (finishedRef.current ? false : workout.restoreSet(set))}
+          onDeleteSet={async (setId) => {
+            // Snapshot remaining completions BEFORE the delete's async state
+            // update. The rest clock restarts at each Log Set, so deleting the
+            // set it last restarted at would strand the anchor there; re-anchor
+            // rest to the latest surviving set so the next set's rest keeps
+            // measuring from real work. No remaining set → drop to idle so the
+            // re-logged set is treated as a first set (no rest credited).
+            const remaining = workout.exercises
+              .flatMap(e => e.sets)
+              .filter(s => s.id !== setId)
+              .map(s => s.completed_at);
+            // Await so a delete rejection propagates to SetLogger's try/catch
+            // (which surfaces the error) instead of becoming unhandled; the
+            // timer ops below use the pre-captured snapshot, not post-delete
+            // state, so awaiting doesn't change their inputs.
+            await workout.deleteSet(workout.activeIndex!, setId);
+            if (retroactive || timer.mode !== 'rest') return;
+            const anchor = latestCompletedMs(remaining);
+            if (anchor !== null) {
+              timer.resumeRest(anchor);
+              persistTimer('rest', anchor);
+            } else {
+              timer.stop();
+              persistTimer('idle', null);
+            }
+          }}
+          onRestoreSet={(set) => {
+            if (finishedRef.current) return false;
+            const ok = workout.restoreSet(set);
+            // Mirror the delete-side re-anchor: deleting the set the rest clock
+            // sat on moved the anchor to an earlier set (or stopped it), so
+            // undoing that delete must move rest back onto the restored set —
+            // but only if it is the newest logged set (undoing a middle-set
+            // delete must leave the anchor alone) and the user is not mid-set
+            // (checked via the live ref, since this closure is frozen at delete
+            // time). Otherwise the restored set's following rest is misread.
+            if (ok && !retroactive && timerModeRef.current !== 'set' && set.completed_at) {
+              const restoredMs = new Date(set.completed_at).getTime();
+              const newestOther = latestCompletedMs(
+                workout.exercises.flatMap(e => e.sets).filter(s => s.id !== set.id).map(s => s.completed_at),
+              );
+              if (!Number.isNaN(restoredMs) && (newestOther === null || restoredMs >= newestOther)) {
+                timer.resumeRest(restoredMs);
+                persistTimer('rest', restoredMs);
+              }
+            }
+            return ok;
+          }}
           onRemoveExercise={() => workout.removeExercise(workout.activeIndex!)}
           onBackToPlan={() => switchExercise(null)}
         />

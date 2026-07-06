@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTimer, startRest, startSet, stopTimer, getElapsed, formatRest, restCountdown } from '../../src/lib/timer';
+import { createTimer, startRest, startSet, stopTimer, getElapsed, formatRest, restCountdown, latestCompletedMs } from '../../src/lib/timer';
 
 describe('restCountdown', () => {
   it('counts down while under target', () => {
@@ -71,6 +71,26 @@ describe('timer', () => {
   it('getElapsed returns 0 for idle timer', () => {
     const timer = createTimer();
     expect(getElapsed(timer, Date.now())).toBe(0);
+  });
+});
+
+describe('latestCompletedMs', () => {
+  it('returns null when no set carries a timestamp', () => {
+    expect(latestCompletedMs([])).toBeNull();
+    expect(latestCompletedMs([null, undefined])).toBeNull();
+  });
+
+  it('picks the newest completion among remaining sets', () => {
+    const older = '2026-07-07T10:00:00.000Z';
+    const newer = '2026-07-07T10:05:00.000Z';
+    expect(latestCompletedMs([older, newer])).toBe(new Date(newer).getTime());
+    expect(latestCompletedMs([newer, older])).toBe(new Date(newer).getTime());
+  });
+
+  it('ignores null and unparseable timestamps', () => {
+    const t = '2026-07-07T10:00:00.000Z';
+    expect(latestCompletedMs([null, t, 'not-a-date', undefined])).toBe(new Date(t).getTime());
+    expect(latestCompletedMs(['not-a-date'])).toBeNull();
   });
 });
 
