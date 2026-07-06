@@ -51,6 +51,14 @@ export function useTimer(initial?: TimerState) {
     return restDuration;
   }, [timerState, startTick]);
 
+  // Re-anchor the running rest timer to a past wall-clock time (ms), used when
+  // a deleted set was the one the rest clock last restarted at: rest must
+  // resume measuring from the previous set's completion, not stay frozen at the
+  // delete. Elapsed jumps to now - startTimeMs and keeps ticking.
+  const resumeRest = useCallback((startTimeMs: number) => {
+    startTick(pureStartRest(startTimeMs));
+  }, [startTick]);
+
   const stop = useCallback((): number => {
     const now = Date.now();
     const { elapsed: duration } = stopTimer(timerState, now);
@@ -62,5 +70,5 @@ export function useTimer(initial?: TimerState) {
 
   useEffect(() => clearTick, [clearTick]);
 
-  return { mode: timerState.mode, elapsed, startRest, startSet, stop };
+  return { mode: timerState.mode, elapsed, startRest, startSet, resumeRest, stop };
 }

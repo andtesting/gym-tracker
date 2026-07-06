@@ -27,6 +27,23 @@ export function getElapsed(state: TimerState, now: number): number {
   return Math.round((now - state.startTime) / 1000);
 }
 
+// The rest timer restarts at every Log Set, so it is always anchored to the
+// most-recently logged set's completion. When a set is deleted mid-rest, that
+// anchor can point at the just-deleted set — leaving the next set's rest
+// measured from the delete instead of from real work. This returns the latest
+// completion time (ms) among the REMAINING sets, so rest can re-anchor there;
+// null when none carry a usable timestamp (e.g. the last set was removed).
+export function latestCompletedMs(completedAts: (string | null | undefined)[]): number | null {
+  let max: number | null = null;
+  for (const c of completedAts) {
+    if (!c) continue;
+    const ms = new Date(c).getTime();
+    if (Number.isNaN(ms)) continue;
+    if (max === null || ms > max) max = ms;
+  }
+  return max;
+}
+
 // Formats a rest duration as m:ss for display next to a set. Returns an empty
 // string for null/undefined/zero so the first set (and untimed sets) show blank.
 export function formatRest(seconds: number | null | undefined): string {

@@ -27,7 +27,7 @@ export default function LastSessionRef({
   return (
     <div>
       <div className="set-col-title">
-        <span className="two-column-label" style={{ border: 'none', padding: 0 }}>Last Time</span>
+        <span className="two-column-label" style={{ border: 'none', padding: 0 }}>Past</span>
         {total > 1 && (
           <span className="row" style={{ gap: 2 }}>
             <button

@@ -19,7 +19,7 @@ import {
 import type { PersistedTimer } from '../lib/sessionPersistence';
 import type { TimerState } from '../lib/timer';
 import { summariseWorkout } from '../lib/summary';
-import { DEFAULT_REST_TARGET_SECONDS } from '../lib/timer';
+import { DEFAULT_REST_TARGET_SECONDS, latestCompletedMs } from '../lib/timer';
 import type { WorkoutSummary } from '../lib/summary';
 import { pushOutbox } from '../lib/outbox';
 import { useSettings } from '../hooks/useSettings';
@@ -588,7 +588,28 @@ export default function ActiveWorkout({
             }, restSeconds);
           }}
           onEditSet={(setId, updates) => workout.editSet(workout.activeIndex!, setId, updates)}
-          onDeleteSet={(setId) => workout.deleteSet(workout.activeIndex!, setId)}
+          onDeleteSet={async (setId) => {
+            // Snapshot remaining completions BEFORE the delete's async state
+            // update. The rest clock restarts at each Log Set, so deleting the
+            // set it last restarted at would strand the anchor there; re-anchor
+            // rest to the latest surviving set so the next set's rest keeps
+            // measuring from real work. No remaining set → drop to idle so the
+            // re-logged set is treated as a first set (no rest credited).
+            const remaining = workout.exercises
+              .flatMap(e => e.sets)
+              .filter(s => s.id !== setId)
+              .map(s => s.completed_at);
+            workout.deleteSet(workout.activeIndex!, setId);
+            if (retroactive || timer.mode !== 'rest') return;
+            const anchor = latestCompletedMs(remaining);
+            if (anchor !== null) {
+              timer.resumeRest(anchor);
+              persistTimer('rest', anchor);
+            } else {
+              timer.stop();
+              persistTimer('idle', null);
+            }
+          }}
           onRestoreSet={(set) => (finishedRef.current ? false : workout.restoreSet(set))}
           onRemoveExercise={() => workout.removeExercise(workout.activeIndex!)}
           onBackToPlan={() => switchExercise(null)}
