@@ -19,9 +19,19 @@ The ingest token was generated inside the database and never written down anywhe
 
 Rotation, any time: `update health.config set value = translate(encode(extensions.gen_random_bytes(32), 'base64'), '+/=', '-_'), updated_at = now() where key = 'INGEST_TOKEN';` then re-fetch and re-paste into the one Shortcut action.
 
+## 0.5. Correction 2026-07-07 — no "Find Workouts" action, workouts drop from the hot path
+
+Discovered mid-build: **Shortcuts on Andy's iOS has no `Find Workouts` action.** Searching `Find` lists `Find Health Samples` and ~20 other `Find …` actions, but nothing for workouts. Section 2.2 below was written on the untested assumption that a workout-query action exists; it does not, so **skip section 2.2 entirely**.
+
+This costs nothing: workout history (with HR series) is already the job of the **bulk `export.zip` → lake path**, which carries full multi-year history. The hot path just loses *daily-fresh* workouts, which matter far less than the daily body/sleep/vitals samples.
+
+Revised hot path = **the 10 sample signals only** (sections 2.3–2.8), all via `Find Health Samples`. The server accepts a batch with no workouts (`workouts` is optional, defaults to `[]` — verified in `supabase/functions/ingest-health/index.ts`), so in section 2.9 **omit the `workouts` key** from `Payload`.
+
+Build progress when parked (2026-07-07): Phase 1 done (Shortcut created, 3-day `WindowStart`). Next: build the Weight block as the template (2.3), confirm all 10 types appear in the `Find Health Samples` Type picker, then repeat for the other nine. Phase 0 (token) still outstanding.
+
 ## 1. The probe — DONE 2026-07-04
 
-Andy ran the probe: **Heart Rate Variability and Sleep Analysis are both available** in Shortcuts' Find Health Samples type picker (along with everything else in scope). All sections below apply; no fallback needed.
+Andy ran the probe: **Heart Rate Variability and Sleep Analysis are both available** in Shortcuts' Find Health Samples type picker. Those sample types apply; the workout section (2.2) does **not** — see the 2026-07-07 correction above.
 
 Scope note (2026-07-04 addendum, see HEALTH_SYNC_PLAN section 13): the hot path was widened from 6 to 12 signals. The everything-archive lives in the separate bulk path (Apple Health `export.zip` → local lake), NOT in this Shortcut — do not add high-volume types (all-day heart rate, steps, active energy) here; they kill Shortcuts runs and duplicate what the bulk path captures with full history.
 
@@ -36,7 +46,9 @@ Notation: `→ Variable` means tap the action's output and **Rename** it (or use
 1. **Date** → Current Date
 2. **Adjust Date**: subtract **3 days** from `Current Date` → rename output `WindowStart`
 
-### 2.2 Workouts (with per-workout HR window)
+### 2.2 Workouts (with per-workout HR window) — SKIP (no `Find Workouts` action; see the 2026-07-07 correction above)
+
+> Not buildable on Andy's iOS: there is no `Find Workouts` action. Workouts come through the bulk `export.zip` → lake path instead. Left here as the intended design if a future iOS adds workout querying. Do NOT build this section; omit `workouts` from the `Payload` in 2.9.
 
 1. **Find Workouts where**: All Workouts, add filter **Start Date** is **after** `WindowStart`, Sort by Start Date, Limit **15** → `RecentWorkouts`
 2. **List** (empty) → **Add to Variable** `WorkoutDicts` (creates the variable)
@@ -102,8 +114,8 @@ Every one of these needs only `sample_type`, `measured_at` (ISO 8601 with time +
 
 1. **Dictionary** → `Payload`:
     - `batch_kind` = `daily` (Text)
-    - `workouts` = `WorkoutDicts` (Array)
     - `samples` = `SampleDicts` (Array)
+    - (`workouts` omitted — section 2.2 is skipped; the server defaults it to `[]`)
 2. **Get Contents of URL**:
     - URL: `https://fvgussmhzuiihhrhnymq.supabase.co/functions/v1/ingest-health`
     - Method: **POST**
